@@ -1,0 +1,14 @@
+# PressFlow AI — runtime dependencies
+# Install with:  pip install -r requirements.txt
+
+# --- Database ---
+pymongo>=4.6.0
+
+# --- Dashboard ---
+streamlit>=1.30.0
+
+# --- Google Cloud Vertex AI / Gemini ---
+google-cloud-aiplatform>=1.60.0
+
+# --- MCP server (Model Context Protocol) ---
+mcp>=1.0.0

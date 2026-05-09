@@ -1,0 +1,39 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# --- Virtual envs ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Secrets / local config ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Google Cloud / Vertex AI credentials ---
+service-account*.json
+gcloud-key*.json
+
+# --- IDE / editor ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- macOS / OS noise ---
+.DS_Store
+Thumbs.db
+
+# --- Streamlit ---
+.streamlit/
+
+# --- Local attachments (customer PDFs handled at runtime) ---
+/local-attachments/

@@ -1,0 +1,3 @@
+# Voomie — Project Context
+
+Voomie is a natural-language front door to **shoptalk** (a Racket-based DSL for print job declarations) being built by **Benjamin Martinec**, a prepress operator at **Voom Group**. shoptalk lives as a sibling repository on Desktop; Voomie produces shoptalk source from natural-language customer messages, validating it through shoptalk's parser and rendering preview PDFs through its verifier. The build is simultaneously a hackathon submission for the **Google Cloud Agent Builder + Gemini + MongoDB MCP** integration track (deadline **June 11, 2026**) and a real prototype of what shoptalk's customer-facing layer should look like — the "messy email → validated declaration" workflow that shoptalk itself doesn't ship.

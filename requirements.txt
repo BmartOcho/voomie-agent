@@ -1,0 +1,18 @@
+# Voomie — runtime dependencies for the bridge POC.
+# Install with:  pip install -r requirements.txt
+
+# --- Google Cloud Vertex AI / Gemini (agent reasoning loop) ---
+google-cloud-aiplatform>=1.60.0
+
+# --- MCP server + client (stdio JSON-RPC bridge to the Racket parser) ---
+mcp>=1.0.0
+
+# --- MongoDB (customer/job/conversation/flag persistence) ---
+pymongo>=4.0
+
+# --- PDF inspection (preflight metadata for inspect_pdf tool) ---
+pymupdf>=1.24
+
+# --- PDF + image generation for tests (programmatic fixtures, no committed binaries) ---
+Pillow>=10.0
+reportlab>=4.0
