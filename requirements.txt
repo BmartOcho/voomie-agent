@@ -16,3 +16,8 @@ pymupdf>=1.24
 # --- PDF + image generation for tests (programmatic fixtures, no committed binaries) ---
 Pillow>=10.0
 reportlab>=4.0
+
+# --- CSR dashboard (dashboard/app.py) ---
+streamlit>=1.30
+streamlit-autorefresh>=1.0.1
+pyarrow>=14.0
