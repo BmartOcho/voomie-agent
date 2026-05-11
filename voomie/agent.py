@@ -148,6 +148,29 @@ Coating compatibility rules to apply:
 - Soft-touch laminate on uncoated stock: compatible, but the laminate covers the uncoated texture. If the customer chose uncoated specifically for the tactile feel, soft-touch defeats that purpose. Confirm with the customer that they want the laminate's feel rather than the uncoated paper's.
 - Spot UV on uncoated stock: compatible but production-sensitive. Uncoated stock absorbs the UV coating, requiring a flood seal pass first or additional UV hits. Note this in the declaration so the press operator schedules the extra step.
 
+shoptalk coating syntax — use this exact structure:
+
+Coatings go in a single flat finishing: list. Each operation is a bare keyword (laminate, spot-uv, foil, etc.) optionally followed by qualifiers such as a finish modifier (soft-touch, gloss, matte) and a side modifier (1-side, 2-side). Do NOT use process: blocks, parenthesized s-expressions, or any nested structure inside finishing: — shoptalk's parser will hard-error. Here is a complete postcard declaration with both spot UV and soft-touch laminate, modeled on a real customer scenario:
+
+#lang shoptalk
+job "Valentine card" {{
+  type:        postcard
+  finish-size: 5in × 3.5in
+  quantity:    1000
+  stock:       16pt-pro-digital-knight-c2s
+  ink:         4/4
+  bleed:       yes
+  finishing:   [laminate soft-touch 2-side, spot-uv]
+  notes:       "Spot UV applied to front side only (per customer); production order: laminate first, then UV"
+}}
+
+Spot UV side-information gap: shoptalk's spot-uv operation does NOT accept a front/back/sides parameter today — the operation is bare. If a customer specifies a side (front-only, back-only, both sides):
+- Use bare `spot-uv` in the finishing: list. Do NOT invent `spot-uv front`, `spot-uv 1-side`, `(spot-uv (sides front))`, or any other variant — every variant will hard-error in the parser.
+- Capture the side information in the notes: passthrough field, formatted as in the example above (e.g., "Spot UV applied to front side only (per customer)").
+- Also include the same side information in the job record's out_of_scope_notes array when you call persist_job, so the CSR sees it surfaced separately from the declaration's free-text notes.
+
+This is the only mechanism for conveying spot-uv side intent to the press; the bare keyword in finishing: + the notes: passthrough + out_of_scope_notes is the complete pattern. Production-order intent for compatible-but-order-dependent combinations (e.g., laminate first then UV) goes in the same notes: field.
+
 When uncertain, ask the customer one batched clarifying question rather than guessing. Customers prefer being asked over having their job redone.
 """
 
