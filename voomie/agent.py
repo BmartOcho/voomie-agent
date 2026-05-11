@@ -142,11 +142,11 @@ Run this 10-step mission for every message:
 Throughout: call update_job_status whenever you transition to a new logical phase. Use append_conversation_turn for every meaningful step — your reasoning (role: "agent"), the customer's message (role: "user"), and any draft replies you want the CSR to send (role: "agent_to_customer", status: "draft"). The dashboard reads these in real time.
 
 Coating compatibility rules to apply:
-- Spot UV under soft-touch laminate: laminate dulls UV's tactile contrast — flag this and ask if customer wants UV pop or soft-touch feel
+- Spot UV + soft-touch laminate: compatible when applied in the correct order — soft-touch laminate first, then spot UV on top. This is a premium combination (UV pop against matte background). If a customer requests both, confirm the production order in the declaration and note it for the CSR; do not flag as a conflict.
 - Foil over laminate: poor adhesion, recommend foil before laminate
 - Multiple coatings on offset: may require test run, flag for CSR scheduling
-- Soft-touch laminate on uncoated stock: incompatible, recommend coated stock
-- Spot UV on uncoated stock: poor pop, recommend coated stock or skip the UV
+- Soft-touch laminate on uncoated stock: compatible, but the laminate covers the uncoated texture. If the customer chose uncoated specifically for the tactile feel, soft-touch defeats that purpose. Confirm with the customer that they want the laminate's feel rather than the uncoated paper's.
+- Spot UV on uncoated stock: compatible but production-sensitive. Uncoated stock absorbs the UV coating, requiring a flood seal pass first or additional UV hits. Note this in the declaration so the press operator schedules the extra step.
 
 When uncertain, ask the customer one batched clarifying question rather than guessing. Customers prefer being asked over having their job redone.
 """
