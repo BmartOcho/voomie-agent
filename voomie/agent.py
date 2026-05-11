@@ -841,11 +841,17 @@ def _final_state(parent: str) -> dict[str, Any]:
         1 for j in jobs if (j.get("declaration_source") or "").strip()
     )
 
-    # Phase priority — matches the user's allowed final_status set.
+    # Status priority — aggregate over the `status` field, not `phase`.
+    # `status` is the resting-state semantic the parent summary cares about
+    # ({ready_for_review, clarification_needed, human_review, escalated});
+    # `phase` is the streaming progress indicator and ends at "done" on
+    # success, which isn't a final_status value at all. Reading `phase`
+    # here used to silently demote successful runs to clarification_needed
+    # via the fallback below.
     priority = ["escalated", "human_review", "clarification_needed", "ready_for_review"]
     final_status = None
     for tier in priority:
-        if any(j.get("phase") == tier for j in jobs):
+        if any(j.get("status") == tier for j in jobs):
             final_status = tier
             break
 

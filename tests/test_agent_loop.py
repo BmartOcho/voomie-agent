@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -52,7 +53,7 @@ pytestmark = pytest.mark.skipif(
 # Lazy imports — gated below so module-import doesn't fail when env vars
 # are absent (e.g. when collecting tests without running them).
 if not _missing_env:
-    from voomie.agent import process_message  # noqa: E402
+    from voomie.agent import _final_state, process_message  # noqa: E402
 
     from servers.mongodb import tools as mdb  # noqa: E402
 
@@ -358,6 +359,67 @@ def test_three_turn_cap_enforcement(cleanup_parent):
     assert result["flags_raised"] >= 1, (
         f"ambiguous message should raise at least one flag: {result}"
     )
+
+
+def test_final_state_aggregates_over_status_field(cleanup_parent):
+    """Regression test: _final_state must aggregate over the `status`
+    field (the resting-state semantic), not the `phase` field (the
+    streaming progress indicator).
+
+    Previously, jobs that successfully finished with status='ready_for_review'
+    and phase='done' were demoted at the parent-summary level to
+    'clarification_needed', because 'done' is not in the priority list and
+    the phase-based lookup fell through to the no-flag fallback. This test
+    seeds two synthetic child jobs with status='ready_for_review' / phase='done'
+    and asserts the parent-level final_status comes back as 'ready_for_review'.
+
+    Unit-level test — no Vertex/agent invocation, just MongoDB seeding +
+    the aggregation function. Fast (~1 s). Cleans up via the standard
+    cleanup_parent fixture.
+    """
+    db = mdb._get_db()
+    assert db is not None, "MongoDB unavailable; cannot run test"
+
+    # Synthetic parent J-number well outside both the seeder's space
+    # (J500001+) and the agent's tick-second-mod-1M generator's normal
+    # range, so collisions with concurrent runs are vanishingly rare.
+    parent = "J999990"
+    cleanup_parent.append(parent)
+    children = [f"{parent}-01", f"{parent}-02"]
+
+    now = datetime.utcnow()
+    for cid in children:
+        db["jobs"].replace_one(
+            {"_id": cid},
+            {
+                "_id": cid,
+                "parent_id": parent,
+                "customer_id": None,
+                "status": "ready_for_review",
+                "phase": "done",
+                "declaration_source": "#lang shoptalk\njob \"x\" {}\n",
+                "action_plan": "(job (name \"x\"))",
+                "attachments_metadata": [],
+                "out_of_scope_notes": [],
+                "due_date": None,
+                "rush": False,
+                "created_at": now,
+                "updated_at": now,
+            },
+            upsert=True,
+        )
+
+    result = _final_state(parent)
+
+    assert result["final_status"] == "ready_for_review", (
+        f"phase='done' with status='ready_for_review' must aggregate to "
+        f"ready_for_review, got {result['final_status']!r}: {result}"
+    )
+    assert sorted(result["child_job_ids"]) == sorted(children)
+    assert result["declarations_produced"] == 2, (
+        f"both seeded jobs have non-empty declaration_source: {result}"
+    )
+    assert result["flags_raised"] == 0
 
 
 def test_returning_customer_recognition(cleanup_parent):
