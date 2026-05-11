@@ -1,145 +1,29 @@
 """
-parse_shoptalk_server.py — FastMCP server exposing one tool: parse_shoptalk.
+tools/parse_shoptalk_server.py — back-compat shim.
 
-Per AGENT-NOTES.md (lang/shoptalk/AGENT-NOTES.md §D.1) the only supported
-invocation is `racket <file.rkt>` against a temp file containing a
-#lang shoptalk program. There is no `racket -l shoptalk -e ...` CLI form.
-This server therefore writes the agent's source to a temp .rkt file and
-shells out to Racket.
+The real implementation lives in servers/parse_shoptalk/{tools,server}.py.
+This shim exists so that:
+  - MCPBridge subprocess invocations using the historical path
+    `python tools/parse_shoptalk_server.py` keep working.
+  - Direct imports like `from tools.parse_shoptalk_server import parse_shoptalk`
+    keep resolving to the same function (used by tests/test_render_preview_bridge.py).
 
-Required env vars (both optional, both have working defaults):
-  SHOPTALK_REPO_PATH   Path to shoptalk repo. Default: ~/Desktop/shoptalk
-  RACKET_BIN           Racket binary path. Default: /Applications/Racket v9.1/bin/racket
-
-Stdio: JSON-RPC framed by MCP on stdin/stdout. Diagnostic logs go to stderr
-(visible in the parent terminal) so the operator can confirm subprocess
-identity and see warnings without polluting the JSON-RPC channel.
+The sys.path tweak is needed because Python's default sys.path puts the
+script's directory first when invoked as `python <path>`, which would
+hide the top-level `servers/` package from this shim.
 """
 
 from __future__ import annotations
 
-import os
-import subprocess
 import sys
-import tempfile
 from pathlib import Path
-from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
-
-SHOPTALK_REPO_PATH = (
-    Path(os.environ.get("SHOPTALK_REPO_PATH", str(Path.home() / "Desktop" / "shoptalk")))
-    .expanduser()
-    .resolve()
-)
-
-RACKET_BIN = os.environ.get(
-    "RACKET_BIN",
-    "/Applications/Racket v9.1/bin/racket",
-)
-
-# First Racket invocation may compile shoptalk's modules; subsequent runs hit
-# the compiled cache. 60s gives a comfortable buffer for the cold start.
-PARSE_TIMEOUT_SECONDS = 60
-
-# Self-announce identity to stderr before MCP takes over stdin/stdout. The
-# bridge inherits stderr by default, so this prints to the operator's terminal.
-print(
-    f"[parse_shoptalk_server] PID={os.getpid()} "
-    f"SHOPTALK_REPO_PATH={SHOPTALK_REPO_PATH} "
-    f"RACKET_BIN={RACKET_BIN!r}",
-    file=sys.stderr,
-    flush=True,
-)
-
-
-mcp = FastMCP("parse_shoptalk_server")
-
-
-def _classify_error(stderr: str) -> str:
-    """Coarse error classification per AGENT-NOTES.md §D.2 row labels."""
-    lower = stderr.lower()
-    if "lexer:" in lower:
-        return "lexer"
-    if "encountered parsing error" in lower:
-        return "parse"
-    if "context...:" in stderr or "raise" in lower or " at /" in stderr:
-        return "validation"
-    return "other"
-
-
-@mcp.tool()
-def parse_shoptalk(source: str) -> dict[str, Any]:
-    """Parse a #lang shoptalk source program and return its action plan.
-
-    Writes `source` to a temp .rkt file, invokes Racket, and returns either
-    the action-plan s-expression (success) or a structured error dict
-    (failure).
-
-    Success shape:
-      {"ok": True,
-       "action_plan": "<s-expression text>",
-       "warnings":    "<stderr text or empty>"}
-
-    Failure shape:
-      {"ok": False,
-       "error_class": "lexer" | "parse" | "validation" | "config" | "timeout" | "other",
-       "message":     "<stderr body, trimmed>",
-       "exit_code":   <int>}
-    """
-    if not SHOPTALK_REPO_PATH.exists():
-        return {
-            "ok": False,
-            "error_class": "config",
-            "message": f"SHOPTALK_REPO_PATH does not exist: {SHOPTALK_REPO_PATH}",
-            "exit_code": -1,
-        }
-    if not Path(RACKET_BIN).exists():
-        return {
-            "ok": False,
-            "error_class": "config",
-            "message": f"Racket binary not found at {RACKET_BIN}",
-            "exit_code": -1,
-        }
-
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".rkt", delete=False, encoding="utf-8"
-    ) as f:
-        f.write(source)
-        rkt_path = Path(f.name)
-
-    try:
-        result = subprocess.run(
-            [RACKET_BIN, str(rkt_path)],
-            capture_output=True,
-            text=True,
-            timeout=PARSE_TIMEOUT_SECONDS,
-            cwd=str(SHOPTALK_REPO_PATH),
-        )
-    except subprocess.TimeoutExpired:
-        return {
-            "ok": False,
-            "error_class": "timeout",
-            "message": f"Racket invocation exceeded {PARSE_TIMEOUT_SECONDS}s",
-            "exit_code": -1,
-        }
-    finally:
-        rkt_path.unlink(missing_ok=True)
-
-    if result.returncode == 0:
-        return {
-            "ok": True,
-            "action_plan": result.stdout.strip(),
-            "warnings": result.stderr.strip(),
-        }
-
-    return {
-        "ok": False,
-        "error_class": _classify_error(result.stderr),
-        "message": result.stderr.strip(),
-        "exit_code": result.returncode,
-    }
+from servers.parse_shoptalk.tools import parse_shoptalk  # noqa: E402,F401
+from servers.parse_shoptalk.server import mcp  # noqa: E402
 
 
 if __name__ == "__main__":

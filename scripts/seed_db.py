@@ -32,10 +32,11 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-# Importing the server module triggers _connect() at module load. If
-# MONGODB_URI is missing or auth fails, that surfaces here with a clear
-# stderr message before any seed work begins.
-from tools import mongodb_server as mdb  # noqa: E402
+# The mongodb tool functions live in servers/mongodb/tools.py post-refactor.
+# Connection is lazy — _get_client() runs on first _get_db() call, not at
+# import time, so the URI / auth check is deferred to main()'s explicit
+# probe below.
+from servers.mongodb import tools as mdb  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -334,11 +335,12 @@ def wipe(stats: SeedStats) -> None:
     Uses the shared client directly — there's no MCP tool for this on
     purpose (wipe is a destructive admin op, not a runtime path).
     """
-    if mdb._db is None:
+    db = mdb._get_db()
+    if db is None:
         print("  ✗ MongoDB not connected; cannot wipe.", file=sys.stderr)
         sys.exit(1)
     for name in ("customers", "jobs", "conversations", "flags", "seed_history"):
-        result = mdb._db[name].delete_many({})
+        result = db[name].delete_many({})
         print(f"  · wiped {name}: {result.deleted_count} docs")
 
 
@@ -428,9 +430,9 @@ def main() -> int:
     if not os.environ.get("MONGODB_URI"):
         print("✗ MONGODB_URI not set. Export it and re-run.", file=sys.stderr)
         return 1
-    if mdb._db is None:
+    if mdb._get_db() is None:
         print(
-            "✗ MongoDB connection failed at import time. "
+            "✗ MongoDB connection failed. "
             "Check MONGODB_URI and Atlas Database Access.",
             file=sys.stderr,
         )
