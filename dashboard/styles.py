@@ -229,6 +229,11 @@ STYLES = """
   font-weight: 600;
   min-width: 110px;
 }
+/* Dark-theme override — base #111827 disappears on Streamlit's dark bg,
+   making J-numbers unreadable on the demo projector. */
+@media (prefers-color-scheme: dark) {
+  .child-id { color: #E2E8F0; }
+}
 .child-summary {
   color: #374151;
   font-size: 0.9rem;
