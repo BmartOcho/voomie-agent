@@ -179,25 +179,18 @@ def turn_status_badge(status: str) -> str:
     return ""
 
 
-STYLES = """
-<style>
-/* ====================================================================
-   THEME TOKENS
-   Dark is the default; light is opt-in via [data-theme="light"] on the
-   document root. All surface colors flow through these vars — no
-   component should hard-code a hex value.
-   ==================================================================== */
+_TOKENS_DARK = """
 :root {
-  /* Surface — dark default */
-  --bg-0:        #0A0A0A;   /* page bg */
-  --bg-1:        #111111;   /* card / container bg */
-  --bg-2:        #1A1A1A;   /* raised surface, row hover */
-  --bg-3:        #050505;   /* code blocks (deepest) */
+  /* Surface */
+  --bg-0:        #0A0A0A;
+  --bg-1:        #111111;
+  --bg-2:        #1A1A1A;
+  --bg-3:        #050505;
 
   /* Foreground */
-  --fg-0:        #FAFAFA;   /* primary text */
-  --fg-1:        #A1A1AA;   /* secondary text */
-  --fg-2:        #71717A;   /* muted text */
+  --fg-0:        #FAFAFA;
+  --fg-1:        #A1A1AA;
+  --fg-2:        #71717A;
 
   /* Borders / dividers */
   --border:        #262626;
@@ -207,12 +200,11 @@ STYLES = """
      Used as hairline accents only (focus rings, selected indicators,
      working-state dot, active filter chips). Never as large fills. */
   --accent:        #D8208C;
-  --accent-fg:     #F472B6;   /* readable magenta on dark bg */
+  --accent-fg:     #F472B6;
   --accent-soft:   rgba(216, 32, 140, 0.12);
   --accent-border: rgba(216, 32, 140, 0.35);
 
-  /* Status — green / amber / red / neutral.
-     Soft bg + bright fg + faint border = Linear-style calm pills. */
+  /* Status — green / amber / red / neutral. Linear-style calm pills. */
   --ok-fg:         #4ADE80;
   --ok-soft:       rgba( 34, 197,  94, 0.12);
   --ok-border:     rgba( 74, 222, 128, 0.30);
@@ -229,7 +221,6 @@ STYLES = """
   --neutral-soft:   #1F1F1F;
   --neutral-border: #2A2A2A;
 
-  /* Role badges (conversation turns) */
   --role-user-fg:    #93C5FD;
   --role-user-bg:    rgba( 59, 130, 246, 0.14);
   --role-agent-fg:   #A1A1AA;
@@ -237,18 +228,17 @@ STYLES = """
   --role-out-fg:     #4ADE80;
   --role-out-bg:     rgba( 34, 197,  94, 0.12);
 
-  /* Connection pill */
   --pill-bg:     #1A1A1A;
   --pill-fg:     #A1A1AA;
 }
+"""
 
-/* Light override — applied when the document root has data-theme="light".
-   The toggle (sidebar) flips this attribute via session state. */
-:root[data-theme="light"] {
+_TOKENS_LIGHT = """
+:root {
   --bg-0:        #FAFAFA;
   --bg-1:        #FFFFFF;
   --bg-2:        #F4F4F5;
-  --bg-3:        #0F172A;   /* code stays dark in both themes by design */
+  --bg-3:        #0F172A;   /* code stays dark in both themes — easier to read shoptalk */
 
   --fg-0:        #0A0A0A;
   --fg-1:        #52525B;
@@ -288,6 +278,25 @@ STYLES = """
   --pill-bg:     #F3F4F6;
   --pill-fg:     #374151;
 }
+"""
+
+
+def theme_styles(theme: str) -> str:
+    """Return the full <style> block for the requested theme.
+
+    Tokens for exactly one theme are emitted (no CSS attribute selector
+    or media query needed) so the active theme always wins without
+    Streamlit-rerun flicker. Caller injects via st.markdown with
+    unsafe_allow_html=True.
+
+    `theme` accepts "dark" (default) or "light"; anything else falls
+    back to dark rather than rendering an unstyled page.
+    """
+    tokens = _TOKENS_LIGHT if theme == "light" else _TOKENS_DARK
+    return f"<style>{tokens}{_STYLES_BODY}</style>"
+
+
+_STYLES_BODY = """
 
 /* ====================================================================
    STREAMLIT CHROME — paint the app shell with our tokens.
@@ -859,5 +868,10 @@ STYLES = """
 }
 .flag-reason { font-weight: 700; color: var(--danger-fg); }
 .flag-context { color: var(--fg-1); margin-top: 2px; white-space: pre-wrap; }
-</style>
 """
+
+
+# Backward-compatible default. New code paths should call theme_styles(theme)
+# directly; this alias is for any caller (or test) that just wants the dark
+# default without touching the toggle.
+STYLES = theme_styles("dark")

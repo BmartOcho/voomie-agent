@@ -47,12 +47,12 @@ if str(REPO_ROOT) not in sys.path:
 from dashboard.styles import (  # noqa: E402
     PHASE_BUCKET_ORDER,
     PHASE_BUCKETS,
-    STYLES,
     customer_badge,
     phase_legend_pill,
     phase_pill,
     role_badge,
     state_dot,
+    theme_styles,
     turn_status_badge,
 )
 
@@ -83,7 +83,12 @@ st.set_page_config(
     page_icon="🖨️",
     layout="wide",
 )
-st.markdown(STYLES, unsafe_allow_html=True)
+# Inject the theme tokens + component styles in one go. Reading the
+# theme from session_state at the top of the module (before sidebar
+# render) means the toggle change takes effect on the same rerun the
+# user clicks it, with no dark-then-light flicker.
+_active_theme = st.session_state.get("theme", "dark")
+st.markdown(theme_styles(_active_theme), unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
@@ -928,9 +933,27 @@ def _render_draft_reply(job_id: str, message_index: int, draft: dict[str, Any]) 
 
 
 def render_sidebar() -> bool:
-    """Returns True if auto-refresh is enabled."""
+    """Returns True if auto-refresh is enabled.
+
+    Side effect: the theme toggle updates st.session_state["theme"].
+    The new value won't be applied until the next rerun (Streamlit
+    injects styles at the top of the module, before this function
+    runs). st.toggle's on-change implicitly triggers a rerun, so a
+    user click reads as "click, page reruns, top-of-module reads the
+    new theme, the toggle re-renders in the new state."
+    """
     with st.sidebar:
         st.markdown("## ⚙️ Controls")
+        light_on = st.toggle(
+            "☀ Light mode",
+            value=(st.session_state.get("theme", "dark") == "light"),
+            key="theme_toggle",
+            help="Default is dark. Toggle persists for this session only.",
+        )
+        new_theme = "light" if light_on else "dark"
+        if st.session_state.get("theme") != new_theme:
+            st.session_state["theme"] = new_theme
+            st.rerun()
         auto_refresh = st.toggle("Auto-refresh (1s)", value=True)
         st.divider()
         st.markdown("### Phase legend")
