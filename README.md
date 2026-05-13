@@ -42,12 +42,13 @@ Voomie depends on **shoptalk** being available locally. shoptalk's spec parser i
 
 ## Shop-private content (loaded at runtime)
 
-Two pieces of shop-specific content are loaded at runtime from gitignored files. Both have `.example` stubs committed to document the expected shape:
+Three pieces of shop-specific content are loaded at runtime from gitignored files. All three have `.example` stubs committed to document the expected shape:
 
 - **System prompt** — `prompts/voomie_system.md` (gitignored). Contains your shop's DSL primer, coating compatibility rules, escalation policy, and the 10-step agent mission. Loaded via the `VOOMIE_SYSTEM_PROMPT_PATH` environment variable. See [`prompts/voomie_system.md.example`](./prompts/voomie_system.md.example) for the shape.
+- **Tool descriptions** — `prompts/voomie_tools.md` (gitignored). Per-tool routing prose (the `description=` field on each Vertex AI FunctionDeclaration). Loaded via the `VOOMIE_TOOLS_PROMPT_PATH` environment variable. See [`prompts/voomie_tools.md.example`](./prompts/voomie_tools.md.example) — uses H2 headers (`## <tool_name>`) to split the file into one block per tool. The 11 tool names are listed in the stub.
 - **Seed data** — `seed_data.json` (gitignored). Customer profiles, job history, conversation logs, and flag records used to populate the demo database. Loaded by `scripts/seed_db.py` (override path with `SEED_DATA_PATH` env var). See [`seed_data.json.example`](./seed_data.json.example) for one stub entry showing the JSON shape.
 
-Both are gitignored because they contain shop-specific business logic and (in the seed case) realistic customer/job records that aren't appropriate to ship in a public repo. Copy the `.example` files, fill in your shop's content, and set the env vars before running.
+All three are gitignored because they contain shop-specific business logic and (in the seed case) realistic customer/job records that aren't appropriate to ship in a public repo. Copy the `.example` files, fill in your shop's content, and set the env vars before running.
 
 ## License
 

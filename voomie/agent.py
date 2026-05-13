@@ -132,31 +132,70 @@ _SYSTEM_PROMPT_TEMPLATE = _SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
 # Hand-authoring rather than fetching live from MCP keeps the schema
 # Vertex-friendly: FastMCP's auto-generated inputSchema sometimes emits
 # `anyOf`/$defs/$ref shapes that Vertex's FunctionDeclaration rejects.
-# Per-tool descriptions stay concise; the heavy routing lift is in
-# SYSTEM_PROMPT above.
+#
+# Per-tool descriptions are externalized (same rationale as the system
+# prompt — shop-specific routing prose). Loaded from
+# VOOMIE_TOOLS_PROMPT_PATH at module import via _load_tool_descriptions
+# below. The parameter schemas (types, required fields) stay inline
+# because they're structural, not shop-specific.
+
+_TOOLS_PROMPT_PATH = os.environ.get("VOOMIE_TOOLS_PROMPT_PATH")
+if not _TOOLS_PROMPT_PATH:
+    raise RuntimeError(
+        "VOOMIE_TOOLS_PROMPT_PATH environment variable is not set. "
+        "Point it at your shop's tool-descriptions file "
+        "(see prompts/voomie_tools.md.example for the expected shape)."
+    )
+_TOOLS_PROMPT_PATH = Path(_TOOLS_PROMPT_PATH).expanduser().resolve()
+if not _TOOLS_PROMPT_PATH.exists():
+    raise RuntimeError(
+        f"VOOMIE_TOOLS_PROMPT_PATH does not exist: {_TOOLS_PROMPT_PATH}"
+    )
+
+
+def _load_tool_descriptions(path: Path) -> dict[str, str]:
+    """Parse the tool-descriptions Markdown file into {name: description}.
+
+    Each H2 header (`## <tool_name>`) starts a new tool block. The block
+    body is everything up to the next `## ` or end of file. Fails loud
+    if any of the 11 expected tools is missing — keeps the agent from
+    silently running with an empty description.
+    """
+    import re
+
+    content = path.read_text(encoding="utf-8")
+    # (?ms): multiline + dotall. Capture name after `## ` and body until
+    # the next `## ` header or end of file.
+    matches = re.findall(r"(?ms)^## (\S+)\s*\n(.+?)(?=^## |\Z)", content)
+    descriptions = {name: body.strip() for name, body in matches}
+    expected = {
+        "parse_shoptalk", "query_stock_registry", "query_press_registry",
+        "lookup_customer", "create_customer", "update_job_status",
+        "append_conversation_turn", "persist_job", "flag_for_human",
+        "inspect_pdf", "render_preview",
+    }
+    missing = expected - descriptions.keys()
+    if missing:
+        raise RuntimeError(
+            f"VOOMIE_TOOLS_PROMPT_PATH ({path}) is missing required tool "
+            f"sections: {sorted(missing)}. Each tool needs a `## <name>` "
+            f"header followed by the description text."
+        )
+    return descriptions
+
+
+_TOOL_DESC = _load_tool_descriptions(_TOOLS_PROMPT_PATH)
 
 
 _PARSE_SHOPTALK_DECL = FunctionDeclaration(
     name="parse_shoptalk",
-    description=(
-        "Parse a #lang shoptalk source program. Returns "
-        "{ok: true, action_plan: <s-expression>} on success or "
-        "{ok: false, error_class, message, exit_code} on failure. "
-        "Field syntax: `<name>: <value>` separated by whitespace, fields "
-        "end at newline. Job block: `job \"<name>\" { <fields> }`. "
-        "Postcards (USPS bounds 3.5–6in × 3.5–4.25in) use type:postcard; "
-        "non-USPS sizes (e.g. 4×9 push cards) use type:flat-card to skip "
-        "dimensional validation."
-    ),
+    description=_TOOL_DESC["parse_shoptalk"],
     parameters={
         "type": "object",
         "properties": {
             "source": {
                 "type": "string",
-                "description": (
-                    "Full #lang shoptalk source program, beginning with "
-                    "`#lang shoptalk`."
-                ),
+                "description": "Full spec source program text.",
             },
         },
         "required": ["source"],
@@ -166,16 +205,7 @@ _PARSE_SHOPTALK_DECL = FunctionDeclaration(
 
 _QUERY_STOCK_REGISTRY_DECL = FunctionDeclaration(
     name="query_stock_registry",
-    description=(
-        "Search Voom Group's stock inventory. Use this whenever the "
-        "customer mentions a paper, stock, or substrate — even in fuzzy "
-        "language ('something like 80# cover'). Pass language verbatim "
-        "through criteria.text_search; the registry resolves it. Results "
-        "include match_tier ∈ {exact, alias, ambiguous, name-substring, "
-        "alias-substring, token-overlap}. Treat exact/alias as confident; "
-        "ambiguous → ask the customer; substring/token-overlap → fuzzy "
-        "suggestions."
-    ),
+    description=_TOOL_DESC["query_stock_registry"],
     parameters={
         "type": "object",
         "properties": {
@@ -210,11 +240,7 @@ _QUERY_STOCK_REGISTRY_DECL = FunctionDeclaration(
 
 _QUERY_PRESS_REGISTRY_DECL = FunctionDeclaration(
     name="query_press_registry",
-    description=(
-        "Search Voom Group's press inventory. Use when a press is named "
-        "by alias/shortname ('Big Fuji', 'the Fuji'), or when filtering "
-        "by format. Same match_tier semantics as query_stock_registry."
-    ),
+    description=_TOOL_DESC["query_press_registry"],
     parameters={
         "type": "object",
         "properties": {
@@ -241,12 +267,7 @@ _QUERY_PRESS_REGISTRY_DECL = FunctionDeclaration(
 
 _LOOKUP_CUSTOMER_DECL = FunctionDeclaration(
     name="lookup_customer",
-    description=(
-        "Look up a customer by email (preferred) or name. Returns "
-        "{ok: true, found: true, customer, recent_jobs} on hit, "
-        "{ok: true, found: false} on miss. Call at the start of every "
-        "conversation."
-    ),
+    description=_TOOL_DESC["lookup_customer"],
     parameters={
         "type": "object",
         "properties": {
@@ -262,11 +283,7 @@ _LOOKUP_CUSTOMER_DECL = FunctionDeclaration(
 
 _CREATE_CUSTOMER_DECL = FunctionDeclaration(
     name="create_customer",
-    description=(
-        "Create a new customer record. Call ONLY after lookup_customer "
-        "returned found:false. Returns {ok: true, customer_id} on "
-        "success, {ok: false, error: 'duplicate_email'} on conflict."
-    ),
+    description=_TOOL_DESC["create_customer"],
     parameters={
         "type": "object",
         "properties": {
@@ -282,16 +299,7 @@ _CREATE_CUSTOMER_DECL = FunctionDeclaration(
 
 _UPDATE_JOB_STATUS_DECL = FunctionDeclaration(
     name="update_job_status",
-    description=(
-        "Stream a phase update to the CSR dashboard. Allowed phases: "
-        "reading_message, checking_attachments, looking_up_customer, "
-        "resolving_stocks, resolving_presses, checking_coatings, "
-        "validating_dates, drafting_reply, validating_spec, "
-        "ready_for_review, clarification_needed, human_review, done, "
-        "escalated. Returns {ok: false, error: 'job_not_found'} if the "
-        "job hasn't been persisted yet — call persist_job first for any "
-        "child J-number beyond the first."
-    ),
+    description=_TOOL_DESC["update_job_status"],
     parameters={
         "type": "object",
         "properties": {
@@ -311,14 +319,7 @@ _UPDATE_JOB_STATUS_DECL = FunctionDeclaration(
 
 _APPEND_CONVERSATION_TURN_DECL = FunctionDeclaration(
     name="append_conversation_turn",
-    description=(
-        "Append a turn to the conversation log. Use role='agent' for "
-        "your reasoning, role='user' for the customer's message, "
-        "role='agent_to_customer' with status='draft' for messages the "
-        "CSR should review before sending. Hard cap: 3 'agent_to_customer' "
-        "draft turns total per parent message — Voomie escalates "
-        "automatically beyond that."
-    ),
+    description=_TOOL_DESC["append_conversation_turn"],
     parameters={
         "type": "object",
         "properties": {
@@ -340,13 +341,7 @@ _APPEND_CONVERSATION_TURN_DECL = FunctionDeclaration(
 
 _PERSIST_JOB_DECL = FunctionDeclaration(
     name="persist_job",
-    description=(
-        "Write the final job record to MongoDB. Required fields: _id "
-        "(J-number 'J######-##'), customer_id, status, phase, "
-        "declaration_source, action_plan, attachments_metadata, "
-        "out_of_scope_notes, due_date, rush. Side effect: updates "
-        "customer.last_seen. Idempotent (replace_one upsert)."
-    ),
+    description=_TOOL_DESC["persist_job"],
     parameters={
         "type": "object",
         "properties": {
@@ -359,8 +354,8 @@ _PERSIST_JOB_DECL = FunctionDeclaration(
                     "{drafting, ready_for_review, clarification_needed, "
                     "human_review, done, escalated}. phase is the "
                     "current human-readable phase. declaration_source "
-                    "is the full #lang shoptalk source. action_plan is "
-                    "the s-expression returned by parse_shoptalk. "
+                    "is the full spec source string. action_plan is the "
+                    "structured plan text returned by parse_shoptalk. "
                     "attachments_metadata is a list of dicts. "
                     "out_of_scope_notes is a list of strings. due_date "
                     "is ISO 8601 or null. rush is boolean."
@@ -387,13 +382,7 @@ _PERSIST_JOB_DECL = FunctionDeclaration(
 
 _FLAG_FOR_HUMAN_DECL = FunctionDeclaration(
     name="flag_for_human",
-    description=(
-        "Surface the job in the CSR review queue with full context. "
-        "Side effect: sets the job's phase to 'human_review'. Call when "
-        "you cannot resolve an ambiguity within 3 customer-facing turns, "
-        "when parse_shoptalk fails twice, or when a required field is "
-        "structurally unrecoverable."
-    ),
+    description=_TOOL_DESC["flag_for_human"],
     parameters={
         "type": "object",
         "properties": {
@@ -415,15 +404,7 @@ _FLAG_FOR_HUMAN_DECL = FunctionDeclaration(
 
 _INSPECT_PDF_DECL = FunctionDeclaration(
     name="inspect_pdf",
-    description=(
-        "Read PDF metadata: trim size, page count, color space, fonts, "
-        "bleed, file health. Returns {ok: true, ...} on success, or "
-        "{ok: false, error_class: 'not_pdf'|'encrypted'|'corrupted'|"
-        "'not_found'|'internal_error', message} on failure. For "
-        "non-PDF files (JPG, PNG, AI, INDD), the tool returns "
-        "error_class:'not_pdf' — your job is to ask the customer for a "
-        "PDF; do not attempt conversion."
-    ),
+    description=_TOOL_DESC["inspect_pdf"],
     parameters={
         "type": "object",
         "properties": {
@@ -439,20 +420,14 @@ _INSPECT_PDF_DECL = FunctionDeclaration(
 
 _RENDER_PREVIEW_DECL = FunctionDeclaration(
     name="render_preview",
-    description=(
-        "Render a shoptalk action plan to a preview PDF. Pass the "
-        "action_plan field returned by parse_shoptalk verbatim; "
-        "hand-edited plans will fail because the verifier expects "
-        "parser-stamped fields. Use only when explicitly asked (the "
-        "booklet preview demo beat)."
-    ),
+    description=_TOOL_DESC["render_preview"],
     parameters={
         "type": "object",
         "properties": {
             "action_plan": {
                 "type": "string",
                 "description": (
-                    "S-expression text from parse_shoptalk's action_plan."
+                    "Structured plan text from parse_shoptalk's action_plan."
                 ),
             },
             "output_path": {

@@ -1,0 +1,82 @@
+# Voomie tool descriptions — example stub
+
+This is an `.example` file. The real tool descriptions are loaded from
+`prompts/voomie_tools.md` at runtime via the `VOOMIE_TOOLS_PROMPT_PATH`
+environment variable. The real file is gitignored because the
+descriptions are shop-specific tool-routing prose — they tell the LLM
+when to call each tool in the context of your shop's DSL and policies.
+
+# Loader contract
+
+Each H2 header (`## <tool_name>`) starts a new tool block. The block
+body is read as plain text (no substitution) and injected as the
+FunctionDeclaration's `description=` argument. Tool names must match
+the FunctionDeclaration `name=` exactly. Missing or extra tools cause
+the loader to fail loud at agent import time.
+
+The 11 tool names expected (matching the FunctionDeclaration objects in
+`voomie/agent.py`):
+
+  parse_shoptalk
+  query_stock_registry
+  query_press_registry
+  lookup_customer
+  create_customer
+  update_job_status
+  append_conversation_turn
+  persist_job
+  flag_for_human
+  inspect_pdf
+  render_preview
+
+# Stub entries (replace each with your shop's real description)
+
+## parse_shoptalk
+
+Parse a spec source program with your shop's DSL parser. Describe the success/failure return shape, key field constraints, and any non-obvious tool behavior (e.g. dimensional bounds, type discriminators).
+
+## query_stock_registry
+
+Describe when the agent should call this tool. Surface the criteria
+keys, the match-tier semantics, and how to react to ambiguous matches.
+
+## query_press_registry
+
+Same shape — when to call, what to pass, what to do with results.
+
+## lookup_customer
+
+Describe the lookup behavior and the response shapes for hit/miss.
+
+## create_customer
+
+Describe the create flow including pre-condition (call only after a miss),
+return shapes, and error cases.
+
+## update_job_status
+
+List the allowed phase strings. Note when this tool will fail (e.g.,
+job not yet persisted) so the agent sequences its calls correctly.
+
+## append_conversation_turn
+
+Document the role taxonomy and any caps (turn limits, etc.).
+
+## persist_job
+
+Document required fields, side effects, and idempotency guarantees.
+
+## flag_for_human
+
+Describe the terminal-state escalation conditions exactly — this is the
+load-bearing CSR-handoff contract.
+
+## inspect_pdf
+
+Document the return shapes for PDF-vs-non-PDF inputs and what the agent
+should do with non-PDF detections.
+
+## render_preview
+
+Describe when to call (e.g., explicit user request only) and the
+constraint that the action_plan must be parser-output verbatim.
