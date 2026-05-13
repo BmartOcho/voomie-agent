@@ -63,6 +63,11 @@ UPLOAD_ROOT = Path("/tmp/voomie-uploads")
 RUN_LOG_ROOT = Path("/tmp/voomie-runs")
 DEFAULT_REFRESH_MS = 1000  # 1-second polling per spec.
 
+# Header line that prefixes shoptalk declaration sources. Used by the
+# summary heuristic to skip the language pragma when picking a fallback
+# preview line — the actual value is implementation-defined by shoptalk.
+_DECLARATION_HEADER_PREFIX = "#lang"
+
 st.set_page_config(
     page_title="Voomie — CSR Dashboard",
     page_icon="🖨️",
@@ -245,10 +250,10 @@ def _job_summary(job: dict[str, Any]) -> str:
         if rest:
             pieces.append(rest)
     if not pieces:
-        # Fallback: first non-`#lang` line.
+        # Fallback: first non-header, non-name line.
         for line in decl.splitlines():
             line = line.strip()
-            if line and not line.startswith("#lang") and not line.startswith("job"):
+            if line and not line.startswith(_DECLARATION_HEADER_PREFIX) and not line.startswith("job"):
                 return line[:80]
         return "Drafting…"
     return ", ".join(pieces)
@@ -631,7 +636,7 @@ def render_detail_pane(jobs: list[dict[str, Any]]) -> None:
 
     # ----- Declaration + action plan -------------------------------------
     _render_code_block("📜 shoptalk declaration", job.get("declaration_source") or "")
-    _render_code_block("🧮 action plan (s-expression)", job.get("action_plan") or "")
+    _render_code_block("🧮 action plan", job.get("action_plan") or "")
 
     # ----- Out-of-scope notes --------------------------------------------
     notes = job.get("out_of_scope_notes") or []

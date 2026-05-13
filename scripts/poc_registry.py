@@ -1,6 +1,5 @@
 """
-poc_registry.py — End-to-end proof: Vertex AI Gemini ↔ MCP stdio ↔ Racket
-                  registry CLI.
+poc_registry.py — End-to-end proof: Vertex AI Gemini ↔ MCP stdio ↔ registry CLI.
 
 Hardcoded test: a fuzzy customer inquiry about an 80# matte cover stock
 that needs to be resolved against the print shop's actual inventory.
@@ -20,11 +19,11 @@ This is the second proof point that the bridge generalizes (one server,
 two tools, multi-turn dispatch) and that FunctionDeclaration descriptions
 drive Gemini's tool-routing decisions without system-prompt help.
 
-Env vars (all optional, sensible defaults applied):
+Env vars:
   GCP_PROJECT_ID       Vertex AI project       (default: pressflow-hackathon)
   GCP_REGION           Vertex AI region        (default: us-central1)
-  SHOPTALK_REPO_PATH   shoptalk repo path      (default: ~/Desktop/shoptalk)
-  RACKET_BIN           Racket binary           (default: /Applications/Racket v9.1/bin/racket)
+  SHOPTALK_REPO_PATH   Path to shoptalk repo   (required)
+  RACKET_BIN           Path to parser binary   (required)
 
 Run:
   python scripts/poc_registry.py
@@ -207,7 +206,7 @@ def _short_record(rec: dict) -> str:
 
 
 def main() -> int:
-    _banner("Voomie Registry POC — Vertex AI Gemini ↔ MCP stdio ↔ Racket")
+    _banner("Voomie Registry POC — Vertex AI Gemini ↔ MCP stdio ↔ registry CLI")
 
     print(
         f"\n[poc] Initializing Vertex AI "

@@ -3,15 +3,14 @@ servers/render_preview/tools.py — pure tool function for the
 render_preview MCP server. No FastMCP boilerplate, no module-level
 side effects beyond imports.
 
-Wraps shoptalk's Python verifier (`python -m verifier.build`) to render an
-action-plan s-expression to a preview PDF. The action plan is the
-`action_plan` field returned by parse_shoptalk; the verifier is the same
-component shoptalk uses internally to produce job preview sheets, so this
-is a real round-trip through the shoptalk pipeline rather than a separate
+Wraps shoptalk's Python verifier (`python -m verifier.build`) to render
+an action plan to a preview PDF. The action plan is the `action_plan`
+field returned by parse_shoptalk; the verifier is the same component
+shoptalk uses internally to produce job preview sheets, so this is a
+real round-trip through the shoptalk pipeline rather than a separate
 renderer.
 
-Subprocess shape — confirmed against ~/Desktop/shoptalk/verifier/build.py
-L443-450:
+Subprocess contract:
     python -m verifier.build <input.txt> <output.pdf>
     stdout: "Written: <output.pdf>" on success
     exit 0 on success, non-zero with a traceback on stderr otherwise
@@ -21,15 +20,15 @@ The verifier reads the action plan from a file path (argv[1]) — not stdin
 input temp file in a finally block whatever happens. The output PDF
 survives; it's the deliverable.
 
-Required env vars (both optional, both have working defaults — same
-convention as parse_shoptalk):
-  SHOPTALK_REPO_PATH   Path to shoptalk repo. Default: ~/Desktop/shoptalk
+Required env vars (required — no default; missing values fail loud at
+call time with a config-error envelope):
+  SHOPTALK_REPO_PATH   Path to the shoptalk repo (the verifier's working dir)
 
 We deliberately use sys.executable (not a hardcoded "python3") so the
-verifier's deps (sexpdata, reportlab) are picked up from whatever Python
-environment the MCP server itself is running under. Mismatched
-interpreters between server and verifier would surface as ImportErrors
-inside the subprocess — easy to diagnose, but easier to avoid.
+verifier's deps are picked up from whatever Python environment the MCP
+server itself is running under. Mismatched interpreters between server
+and verifier would surface as ImportErrors inside the subprocess — easy
+to diagnose, but easier to avoid.
 """
 
 from __future__ import annotations
@@ -43,10 +42,11 @@ from pathlib import Path
 from typing import Any
 
 
+_SHOPTALK_REPO_PATH_RAW = os.environ.get("SHOPTALK_REPO_PATH")
 SHOPTALK_REPO_PATH = (
-    Path(os.environ.get("SHOPTALK_REPO_PATH", str(Path.home() / "Desktop" / "shoptalk")))
-    .expanduser()
-    .resolve()
+    Path(_SHOPTALK_REPO_PATH_RAW).expanduser().resolve()
+    if _SHOPTALK_REPO_PATH_RAW
+    else None
 )
 
 # Verifier is a pure-Python reportlab renderer; cold start is fast. 30 s
@@ -57,6 +57,13 @@ RENDER_TIMEOUT_SECONDS = 30
 
 def _config_check() -> dict[str, Any] | None:
     """Return a config-error envelope if pre-conditions fail; else None."""
+    if SHOPTALK_REPO_PATH is None:
+        return {
+            "ok": False,
+            "error_class": "not_found",
+            "message": "SHOPTALK_REPO_PATH environment variable is not set",
+            "stderr": "",
+        }
     if not SHOPTALK_REPO_PATH.exists():
         return {
             "ok": False,
@@ -99,11 +106,10 @@ def render_preview(action_plan: str, output_path: str = "") -> dict[str, Any]:
     readable contract downstream.
 
     Argument:
-      action_plan — the s-expression text returned in parse_shoptalk's
+      action_plan — the structured plan text returned in parse_shoptalk's
                     `action_plan` field. Must be the parser's output
                     verbatim; hand-edited plans will fail because the
-                    verifier expects parser-stamped fields like
-                    (press "Big Fuji" (alias big-fuji)).
+                    verifier expects parser-stamped fields.
       output_path — optional absolute path for the rendered PDF. Empty
                     string → temp path under the OS temp dir.
 

@@ -3,10 +3,9 @@ servers/registry/tools.py — pure tool functions for the registry MCP
 server (query_stock_registry, query_press_registry). No FastMCP
 boilerplate, no module-level side effects beyond imports and constants.
 
-Both tools shell out to the same Racket CLI, sending a one-query batch on
-stdin and parsing the per-query envelope from stdout. The CLI's JSON
-contract is locked (see shoptalk's tests/test_query_registry.py and
-lang/shoptalk/REGISTRY-RECON.md):
+Both tools shell out to the same registry CLI, sending a one-query batch
+on stdin and parsing the per-query envelope from stdout. The CLI's JSON
+contract is locked:
 
     Input shape:
       {"queries": [{"kind": "stock"|"press", "criteria": {...}, "limit": N}]}
@@ -24,20 +23,20 @@ Per-call response shape (flattened from the CLI's envelope):
     Success:  {ok: true,  kind, count, results: [...]}
     Failure:  {ok: false, error_class, message, query_index, exit_code}
 
-Required env vars (both optional, both have working defaults):
-  SHOPTALK_REPO_PATH   Path to shoptalk repo. Default: ~/Desktop/shoptalk
-  RACKET_BIN           Racket binary path. Default: /Applications/Racket v9.1/bin/racket
+Required env vars (both required — no defaults; missing values fail loud
+at call time with a config-error envelope):
+  SHOPTALK_REPO_PATH   Path to the shoptalk repo (the CLI's working dir)
+  RACKET_BIN           Path to the parser binary
 
 ----- Future amortization (out of scope here, intentional) -----
-Each Gemini tool call currently spawns a fresh Racket subprocess and pays
-~250-310 ms cold-load (per shoptalk's REGISTRY-RECON.md §5). If a single
-agent turn issues >5 registry queries and the demo's 90s target is at
-risk, two mitigations exist:
+Each Gemini tool call currently spawns a fresh CLI subprocess and pays
+~250-310 ms cold-load. If a single agent turn issues >5 registry queries
+and the demo's 90s target is at risk, two mitigations exist:
   (a) Batch at the MCP server layer — collect calls within a short window,
-      flush as one Racket invocation. Requires changing the tool's per-call
+      flush as one CLI invocation. Requires changing the tool's per-call
       contract (Gemini sends one query at a time).
-  (b) Keep a long-lived Racket REPL process and pipe queries to it.
-      Eliminates cold-start entirely after the first query.
+  (b) Keep a long-lived REPL process and pipe queries to it. Eliminates
+      cold-start entirely after the first query.
 Trigger condition: revisit when 5+ queries per turn become routine.
 """
 
@@ -51,16 +50,14 @@ from pathlib import Path
 from typing import Any
 
 
+_SHOPTALK_REPO_PATH_RAW = os.environ.get("SHOPTALK_REPO_PATH")
 SHOPTALK_REPO_PATH = (
-    Path(os.environ.get("SHOPTALK_REPO_PATH", str(Path.home() / "Desktop" / "shoptalk")))
-    .expanduser()
-    .resolve()
+    Path(_SHOPTALK_REPO_PATH_RAW).expanduser().resolve()
+    if _SHOPTALK_REPO_PATH_RAW
+    else None
 )
 
-RACKET_BIN = os.environ.get(
-    "RACKET_BIN",
-    "/Applications/Racket v9.1/bin/racket",
-)
+RACKET_BIN = os.environ.get("RACKET_BIN")
 
 QUERY_CLI_RELATIVE = Path("tools") / "query-registry.rkt"
 
@@ -71,6 +68,22 @@ QUERY_TIMEOUT_SECONDS = 10
 
 def _config_check() -> dict[str, Any] | None:
     """Return a config-error envelope if pre-conditions fail; else None."""
+    if SHOPTALK_REPO_PATH is None:
+        return {
+            "ok": False,
+            "error_class": "config",
+            "message": "SHOPTALK_REPO_PATH environment variable is not set",
+            "query_index": None,
+            "exit_code": -1,
+        }
+    if RACKET_BIN is None:
+        return {
+            "ok": False,
+            "error_class": "config",
+            "message": "RACKET_BIN environment variable is not set",
+            "query_index": None,
+            "exit_code": -1,
+        }
     if not SHOPTALK_REPO_PATH.exists():
         return {
             "ok": False,
@@ -83,7 +96,7 @@ def _config_check() -> dict[str, Any] | None:
         return {
             "ok": False,
             "error_class": "config",
-            "message": f"Racket binary not found at {RACKET_BIN}",
+            "message": f"Parser binary not found at {RACKET_BIN}",
             "query_index": None,
             "exit_code": -1,
         }
@@ -92,7 +105,7 @@ def _config_check() -> dict[str, Any] | None:
         return {
             "ok": False,
             "error_class": "config",
-            "message": f"query-registry.rkt not found at {cli_path}",
+            "message": f"Registry CLI not found at {cli_path}",
             "query_index": None,
             "exit_code": -1,
         }
@@ -122,7 +135,7 @@ def _run_single_query(
     stdin_payload = json.dumps(batch)
 
     print(
-        f"[registry_server] invoking racket: kind={kind} "
+        f"[registry_server] invoking CLI: kind={kind} "
         f"criteria_keys={sorted(criteria.keys())} limit={limit}",
         file=sys.stderr,
         flush=True,
@@ -146,7 +159,7 @@ def _run_single_query(
         return {
             "ok": False,
             "error_class": "timeout",
-            "message": f"Racket invocation exceeded {QUERY_TIMEOUT_SECONDS}s",
+            "message": f"CLI invocation exceeded {QUERY_TIMEOUT_SECONDS}s",
             "query_index": None,
             "exit_code": -1,
         }
@@ -169,7 +182,7 @@ def _run_single_query(
             "ok": False,
             "error_class": "internal-error",
             "message": (
-                f"empty stdout from query-registry.rkt; stderr: {proc.stderr.strip()}"
+                f"empty stdout from registry CLI; stderr: {proc.stderr.strip()}"
             ),
             "query_index": None,
             "exit_code": proc.returncode,

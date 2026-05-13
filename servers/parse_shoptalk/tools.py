@@ -3,15 +3,13 @@ servers/parse_shoptalk/tools.py — pure tool functions for the parse_shoptalk
 MCP server. No FastMCP boilerplate, no module-level side effects: importing
 this module from another server (e.g. a combined voomie_server) is safe.
 
-Per AGENT-NOTES.md (lang/shoptalk/AGENT-NOTES.md §D.1) the only supported
-invocation is `racket <file.rkt>` against a temp file containing a
-#lang shoptalk program. There is no `racket -l shoptalk -e ...` CLI form.
-This server therefore writes the agent's source to a temp .rkt file and
-shells out to Racket.
+Writes the agent's spec source to a temp file and shells out to shoptalk's
+spec parser CLI, which is configured via env vars at call time.
 
-Required env vars (both optional, both have working defaults):
-  SHOPTALK_REPO_PATH   Path to shoptalk repo. Default: ~/Desktop/shoptalk
-  RACKET_BIN           Racket binary path. Default: /Applications/Racket v9.1/bin/racket
+Required env vars (both required — no defaults; missing values fail loud
+at call time with a config-error envelope):
+  SHOPTALK_REPO_PATH   Path to the shoptalk repo (the parser's working dir)
+  RACKET_BIN           Path to the parser binary
 """
 
 from __future__ import annotations
@@ -23,44 +21,56 @@ from pathlib import Path
 from typing import Any
 
 
+_SHOPTALK_REPO_PATH_RAW = os.environ.get("SHOPTALK_REPO_PATH")
 SHOPTALK_REPO_PATH = (
-    Path(os.environ.get("SHOPTALK_REPO_PATH", str(Path.home() / "Desktop" / "shoptalk")))
-    .expanduser()
-    .resolve()
+    Path(_SHOPTALK_REPO_PATH_RAW).expanduser().resolve()
+    if _SHOPTALK_REPO_PATH_RAW
+    else None
 )
 
-RACKET_BIN = os.environ.get(
-    "RACKET_BIN",
-    "/Applications/Racket v9.1/bin/racket",
-)
+RACKET_BIN = os.environ.get("RACKET_BIN")
 
-# First Racket invocation may compile shoptalk's modules; subsequent runs hit
-# the compiled cache. 60s gives a comfortable buffer for the cold start.
+# First parser invocation may compile shoptalk's modules; subsequent runs
+# hit the compiled cache. 60s gives a comfortable buffer for the cold start.
 PARSE_TIMEOUT_SECONDS = 60
 
 
+# Substring tells the parser emits on different error categories.
+# Kept opaque on purpose — these are tied to the parser's diagnostic
+# output and change there, not here.
+_ERR_TELL_LEXER = "lexer:"
+_ERR_TELL_PARSE = "encountered parsing error"
+_ERR_TELL_VALIDATION_A = "context...:"
+_ERR_TELL_VALIDATION_B = "raise"
+_ERR_TELL_VALIDATION_C = " at /"
+
+
 def _classify_error(stderr: str) -> str:
-    """Coarse error classification per AGENT-NOTES.md §D.2 row labels."""
+    """Coarse error classification based on parser diagnostic tells."""
     lower = stderr.lower()
-    if "lexer:" in lower:
+    if _ERR_TELL_LEXER in lower:
         return "lexer"
-    if "encountered parsing error" in lower:
+    if _ERR_TELL_PARSE in lower:
         return "parse"
-    if "context...:" in stderr or "raise" in lower or " at /" in stderr:
+    if (
+        _ERR_TELL_VALIDATION_A in stderr
+        or _ERR_TELL_VALIDATION_B in lower
+        or _ERR_TELL_VALIDATION_C in stderr
+    ):
         return "validation"
     return "other"
 
 
 def parse_shoptalk(source: str) -> dict[str, Any]:
-    """Parse a #lang shoptalk source program and return its action plan.
+    """Parse a shoptalk spec source program and return its action plan.
 
-    Writes `source` to a temp .rkt file, invokes Racket, and returns either
-    the action-plan s-expression (success) or a structured error dict
+    Writes `source` to a temp file, invokes the parser binary, and returns
+    either the structured action plan (success) or a structured error dict
     (failure).
 
     Success shape:
       {"ok": True,
-       "action_plan": "<s-expression text>",
+       "action_plan": "<structured plan text>",
        "warnings":    "<stderr text or empty>"}
 
     Failure shape:
@@ -69,6 +79,20 @@ def parse_shoptalk(source: str) -> dict[str, Any]:
        "message":     "<stderr body, trimmed>",
        "exit_code":   <int>}
     """
+    if SHOPTALK_REPO_PATH is None:
+        return {
+            "ok": False,
+            "error_class": "config",
+            "message": "SHOPTALK_REPO_PATH environment variable is not set",
+            "exit_code": -1,
+        }
+    if RACKET_BIN is None:
+        return {
+            "ok": False,
+            "error_class": "config",
+            "message": "RACKET_BIN environment variable is not set",
+            "exit_code": -1,
+        }
     if not SHOPTALK_REPO_PATH.exists():
         return {
             "ok": False,
@@ -80,7 +104,7 @@ def parse_shoptalk(source: str) -> dict[str, Any]:
         return {
             "ok": False,
             "error_class": "config",
-            "message": f"Racket binary not found at {RACKET_BIN}",
+            "message": f"Parser binary not found at {RACKET_BIN}",
             "exit_code": -1,
         }
 
@@ -102,7 +126,7 @@ def parse_shoptalk(source: str) -> dict[str, Any]:
         return {
             "ok": False,
             "error_class": "timeout",
-            "message": f"Racket invocation exceeded {PARSE_TIMEOUT_SECONDS}s",
+            "message": f"Parser invocation exceeded {PARSE_TIMEOUT_SECONDS}s",
             "exit_code": -1,
         }
     finally:

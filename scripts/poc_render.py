@@ -4,17 +4,17 @@ poc_render.py — End-to-end booklet preview pipeline:
 
 This is the demo's closing beat: "here's what the machine-readable
 contract enables downstream." A locked saddle-stitch booklet declaration
-is parsed by the Racket parser, the action plan is fed to the Python
-verifier, and a real preview PDF is opened on screen.
+is parsed by shoptalk's spec parser, the action plan is fed to the
+Python verifier, and a real preview PDF is opened on screen.
 
 Two MCP servers are spawned in sequence (one bridge per tool, same as
 production usage in the agent loop). No Vertex/Gemini in this POC — the
 booklet declaration is pre-baked, so the agent is not in the loop. The
 point is to demonstrate that parse and render compose cleanly.
 
-Env vars (all optional):
-  SHOPTALK_REPO_PATH  shoptalk repo path  (default: ~/Desktop/shoptalk)
-  RACKET_BIN          Racket binary       (default: /Applications/Racket v9.1/bin/racket)
+Env vars:
+  SHOPTALK_REPO_PATH  Path to shoptalk repo  (required)
+  RACKET_BIN          Path to parser binary  (required)
   POC_OUTPUT_PATH     Override the output PDF path. Defaults to a uuid
                       under the OS temp dir. Useful when recording a demo
                       and you want a stable filename to point Preview at.

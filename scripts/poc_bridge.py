@@ -1,5 +1,5 @@
 """
-poc_bridge.py — End-to-end proof: Vertex AI Gemini ↔ MCP stdio ↔ Racket.
+poc_bridge.py — End-to-end proof: Vertex AI Gemini ↔ MCP stdio ↔ spec parser.
 
 Hardcoded test: customer message #3 from SPEC.md (a 4 x 9 candidate push card).
 
@@ -9,14 +9,14 @@ The script:
   3. Sends the customer message to Gemini.
   4. Dispatches Gemini's parse_shoptalk function calls through the MCP bridge.
   5. Routes the parser's response back to Gemini.
-  6. Prints the final Gemini response and the raw action-plan s-expression
-     captured directly from the parser when one is produced.
+  6. Prints the final Gemini response and the raw action plan captured
+     directly from the parser when one is produced.
 
-Env vars (all optional, sensible defaults applied):
+Env vars:
   GCP_PROJECT_ID       Vertex AI project       (default: pressflow-hackathon)
   GCP_REGION           Vertex AI region        (default: us-central1)
-  SHOPTALK_REPO_PATH   shoptalk repo path      (default: ~/Desktop/shoptalk)
-  RACKET_BIN           Racket binary           (default: /Applications/Racket v9.1/bin/racket)
+  SHOPTALK_REPO_PATH   Path to shoptalk repo   (required)
+  RACKET_BIN           Path to parser binary   (required)
 
 Run:
   python scripts/poc_bridge.py
@@ -64,8 +64,8 @@ SYSTEM_INSTRUCTION = (
 PARSE_SHOPTALK_DECL = FunctionDeclaration(
     name="parse_shoptalk",
     description=(
-        "Parse a #lang shoptalk source program with the shoptalk Racket parser. "
-        "shoptalk's grammar is NOT Racket s-expressions; it uses a "
+        "Parse a shoptalk source program with the shoptalk spec parser. "
+        "shoptalk's grammar uses a "
         '`job "<name>" { field: value }` block form. Minimal valid postcard:\n\n'
         "#lang shoptalk\n"
         'job "Sample Postcard" {\n'
@@ -86,7 +86,7 @@ PARSE_SHOPTALK_DECL = FunctionDeclaration(
         "round-trip without parser enforcement (the agent should still emit them). "
         "Ink defaults to 4/4 (full-color both sides) if omitted; valid token shape "
         "is N/N where N ∈ {0,1,2,4}.\n\n"
-        "Returns {ok: true, action_plan: <s-expression text>, warnings: <stderr text>} "
+        "Returns {ok: true, action_plan: <structured plan text>, warnings: <stderr text>} "
         "on a clean parse, or {ok: false, error_class: "
         "lexer|parse|validation|config|timeout|other, message: <stderr body>, "
         "exit_code: <int>} on failure."
@@ -112,7 +112,7 @@ def _banner(text: str) -> None:
 
 
 def main() -> int:
-    _banner("Voomie Bridge POC — Vertex AI Gemini ↔ MCP stdio ↔ Racket")
+    _banner("Voomie Bridge POC — Vertex AI Gemini ↔ MCP stdio ↔ spec parser")
 
     print(f"\n[poc] Initializing Vertex AI (project={GCP_PROJECT_ID}, region={GCP_REGION})…")
     vertexai.init(project=GCP_PROJECT_ID, location=GCP_REGION)
@@ -183,7 +183,7 @@ def main() -> int:
             print(f"(no text content in final response: {e})")
 
         if captured_action_plan:
-            _banner("Raw action plan from Racket")
+            _banner("Raw action plan from parser")
             print(captured_action_plan)
         else:
             _banner("No action plan was captured")

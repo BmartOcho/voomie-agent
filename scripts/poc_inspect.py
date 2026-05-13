@@ -16,14 +16,14 @@ The script:
      size, color space, embedded fonts, and any missing/thin bleed.
 
 This is the third proof point: the bridge generalizes to a third tool
-class (file inspection, no Racket involved) and FunctionDeclaration
-descriptions still drive Gemini's tool-routing decisions.
+class (file inspection) and FunctionDeclaration descriptions still drive
+Gemini's tool-routing decisions.
 
-Env vars (all optional, sensible defaults applied):
-  GCP_PROJECT_ID       Vertex AI project   (default: pressflow-hackathon)
-  GCP_REGION           Vertex AI region    (default: us-central1)
-  POC_PDF_PATH         Override which PDF to inspect. Defaults to the
-                       first .pdf found in ~/Desktop/shoptalk/examples/.
+Env vars:
+  GCP_PROJECT_ID       Vertex AI project        (default: pressflow-hackathon)
+  GCP_REGION           Vertex AI region         (default: us-central1)
+  POC_PDF_PATH         Path to a PDF to inspect (required — no default;
+                       point this at any sample PDF you'd like to test)
 
 Run:
   python scripts/poc_inspect.py
@@ -53,15 +53,14 @@ GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "pressflow-hackathon")
 GCP_REGION = os.environ.get("GCP_REGION", "us-central1")
 
 SERVER_PATH = REPO_ROOT / "tools" / "inspect_pdf_server.py"
-EXAMPLES_DIR = Path.home() / "Desktop" / "shoptalk" / "examples"
 
 
 def _pick_pdf() -> Path:
     """Resolve the PDF to inspect.
 
-    Honors POC_PDF_PATH if set; otherwise picks the first .pdf in
-    ~/Desktop/shoptalk/examples/ (alphabetical). Bails with a clear error
-    if no PDF is reachable — the POC is meaningless without real input.
+    Requires POC_PDF_PATH to be set — no default. The POC is meaningless
+    without real input, so we fail loud rather than silently picking from
+    a personal directory.
     """
     override = os.environ.get("POC_PDF_PATH")
     if override:
@@ -69,15 +68,10 @@ def _pick_pdf() -> Path:
         if not p.exists():
             raise SystemExit(f"[poc] POC_PDF_PATH={p} does not exist.")
         return p
-    if not EXAMPLES_DIR.exists():
-        raise SystemExit(
-            f"[poc] {EXAMPLES_DIR} does not exist. "
-            "Set POC_PDF_PATH or check that the shoptalk repo is cloned."
-        )
-    candidates = sorted(EXAMPLES_DIR.glob("*.pdf"))
-    if not candidates:
-        raise SystemExit(f"[poc] No .pdf files found in {EXAMPLES_DIR}.")
-    return candidates[0]
+    raise SystemExit(
+        "[poc] POC_PDF_PATH environment variable not set. "
+        "Point it at any local PDF you'd like to inspect."
+    )
 
 
 # Customer message + file path stitched into one prompt — mirrors how the

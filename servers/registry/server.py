@@ -26,8 +26,8 @@ from servers.registry.tools import (
 # Self-announce identity to stderr before MCP takes over stdin/stdout.
 print(
     f"[registry_server] PID={os.getpid()} "
-    f"SHOPTALK_REPO_PATH={SHOPTALK_REPO_PATH} "
-    f"RACKET_BIN={RACKET_BIN!r}",
+    f"shoptalk_repo={SHOPTALK_REPO_PATH} "
+    f"parser_bin={RACKET_BIN!r}",
     file=sys.stderr,
     flush=True,
 )
