@@ -42,3 +42,10 @@ Thumbs.db
 #     scripts/run_fixture.py — preserved locally for Devpost reference) ---
 /demo*.json
 /demo*.log
+
+# --- Shop-private content loaded at runtime ---
+#     System prompt (DSL primer + policy rules) and seed data
+#     (real customer/job history). Both have .example stubs committed
+#     to document the expected shape.
+/prompts/voomie_system.md
+/seed_data.json

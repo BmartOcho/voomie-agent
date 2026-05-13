@@ -8,6 +8,13 @@ Usage:
 
 Requires: MONGODB_URI exported in the environment.
 
+Seed data is loaded from `seed_data.json` (gitignored — see
+`seed_data.json.example` for the expected shape). Each customer entry
+specifies job history with `due_offset_days` and `created_offset_days`
+fields that are resolved relative to NOW at seed time. The literal
+declaration_source / action_plan strings round-trip through the seeder
+unchanged.
+
 Design note — why import the tool functions directly:
 The seeder calls the same Python functions the FastMCP server exposes
 (create_customer, persist_job, append_conversation_turn, flag_for_human).
@@ -23,6 +30,7 @@ here too.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from datetime import datetime, timedelta
@@ -50,254 +58,27 @@ def days_ago(n: int) -> datetime:
     return NOW - timedelta(days=n)
 
 
-# Each entry: customer profile, then job history. Job history is "shape-
-# realistic" — declaration_source and action_plan are plausible stubs that
-# parse-shape but aren't run through the Racket parser. The point is to
-# give the dashboard texture and exercise the cross-collection links.
+def _load_customers() -> list[dict[str, Any]]:
+    """Load customer + job seed data from the gitignored JSON file.
 
-CUSTOMERS: list[dict[str, Any]] = [
-    {
-        "name": "Chris Walton",
-        "email": "chris@blastmailco.com",
-        "phone": "555-0123",
-        "notes": (
-            "Returning postcard customer; runs direct-mail campaigns. "
-            "Knows our stock catalog by name. Prefers 100# Gloss Cover."
-        ),
-        "jobs": [
-            {
-                "job_id_suffix": "01",
-                "phase": "done",
-                "status": "done",
-                "rush": False,
-                "due_offset_days": -42,
-                "created_offset_days": -56,
-                "declaration_source": (
-                    "#lang shoptalk\n"
-                    "job \"Walton Spring Postcard\" {\n"
-                    "  type:        postcard\n"
-                    "  finish-size: 6in × 4in\n"
-                    "  quantity:    5000\n"
-                    "  stock:       100-gloss-cover\n"
-                    "  press:       big-fuji\n"
-                    "}\n"
-                ),
-                "action_plan": (
-                    "(job \"Walton Spring Postcard\" "
-                    "(type postcard) "
-                    "(finish-size 6in 4in) "
-                    "(quantity 5000) "
-                    "(stock 100-gloss-cover (printiq-code 100#GlossCoverDigitalSize)))"
-                ),
-                "attachments_metadata": [
-                    {"filename": "spring-front.pdf", "pages": 1, "color_space": "CMYK", "has_bleed": True},
-                    {"filename": "spring-back.pdf", "pages": 1, "color_space": "CMYK", "has_bleed": True},
-                ],
-                "out_of_scope_notes": [],
-                "messages": [
-                    ("user", "Need 5000 4×6 postcards on the usual 100# gloss. Two-sided.", "sent"),
-                    ("agent", "Customer is known; pulled 100# Gloss Cover Digital from registry.", "sent"),
-                    ("agent_to_customer", "Confirming: 5000 6×4 postcards, 100# Gloss Cover, full bleed both sides. Ready to proceed?", "sent"),
-                    ("user", "Yes, go ahead.", "sent"),
-                ],
-                "flag": None,
-            },
-            {
-                "job_id_suffix": "02",
-                "phase": "done",
-                "status": "done",
-                "rush": True,
-                "due_offset_days": -7,
-                "created_offset_days": -14,
-                "declaration_source": (
-                    "#lang shoptalk\n"
-                    "job \"Walton Rush Postcard\" {\n"
-                    "  type:        postcard\n"
-                    "  finish-size: 5in × 3.5in\n"
-                    "  quantity:    2500\n"
-                    "  stock:       100-gloss-cover\n"
-                    "  rush:        true\n"
-                    "}\n"
-                ),
-                "action_plan": (
-                    "(job \"Walton Rush Postcard\" "
-                    "(type postcard) (finish-size 5in 3.5in) (quantity 2500) "
-                    "(rush true))"
-                ),
-                "attachments_metadata": [
-                    {"filename": "rush.pdf", "pages": 1, "color_space": "CMYK", "has_bleed": True},
-                ],
-                "out_of_scope_notes": [],
-                "messages": [
-                    ("user", "Rush job — need 2500 5×3.5 postcards by next Friday.", "sent"),
-                    ("agent", "Validated date: 7 days out, within rush window.", "sent"),
-                ],
-                "flag": None,
-            },
-            {
-                "job_id_suffix": "03",
-                "phase": "ready_for_review",
-                "status": "ready_for_review",
-                "rush": False,
-                "due_offset_days": 14,
-                "created_offset_days": -1,
-                "declaration_source": (
-                    "#lang shoptalk\n"
-                    "job \"Walton Q2 Mailer\" {\n"
-                    "  type:        postcard\n"
-                    "  finish-size: 6in × 4in\n"
-                    "  quantity:    7500\n"
-                    "  stock:       100-gloss-cover\n"
-                    "}\n"
-                ),
-                "action_plan": (
-                    "(job \"Walton Q2 Mailer\" (type postcard) "
-                    "(finish-size 6in 4in) (quantity 7500))"
-                ),
-                "attachments_metadata": [],
-                "out_of_scope_notes": [],
-                "messages": [
-                    ("user", "Q2 mailer: 7500 of the usual 6×4 postcards.", "sent"),
-                    ("agent", "Customer known. Stock and press resolved.", "sent"),
-                    ("agent_to_customer", "Q2 mailer ready: 7500 6×4 100# Gloss Cover postcards. CSR sign off?", "draft"),
-                ],
-                "flag": None,
-            },
-        ],
-    },
-    {
-        "name": "Sandra Reyes",
-        "email": "sreyes@coastalprint.com",
-        "phone": "555-0144",
-        "notes": (
-            "New customer; professional buyer at a regional print broker. "
-            "First contact via web inquiry. No prior history."
-        ),
-        "jobs": [],
-    },
-    {
-        "name": "Frank Delgado",
-        "email": "frank@yogaandmartialarts.com",
-        "phone": "555-0188",
-        "notes": (
-            "Occasional customer; small studio. Often asks about mailing "
-            "list services we don't offer — capture as out-of-scope."
-        ),
-        "jobs": [
-            {
-                "job_id_suffix": "01",
-                "phase": "done",
-                "status": "done",
-                "rush": False,
-                "due_offset_days": -90,
-                "created_offset_days": -105,
-                "declaration_source": (
-                    "#lang shoptalk\n"
-                    "job \"Delgado Class Schedule Postcard\" {\n"
-                    "  type:        postcard\n"
-                    "  finish-size: 6in × 4in\n"
-                    "  quantity:    1000\n"
-                    "  stock:       80-gloss-cover\n"
-                    "}\n"
-                ),
-                "action_plan": (
-                    "(job \"Delgado Class Schedule Postcard\" (type postcard) "
-                    "(finish-size 6in 4in) (quantity 1000))"
-                ),
-                "attachments_metadata": [
-                    {"filename": "class-card.pdf", "pages": 2, "color_space": "CMYK", "has_bleed": True},
-                ],
-                "out_of_scope_notes": [
-                    "Customer asked if we could mail directly to a list of 800 addresses. "
-                    "Voomie does not handle mailing services; CSR followed up offline."
-                ],
-                "messages": [
-                    ("user", "1000 6×4 postcards. Also can you mail them to my list of 800?", "sent"),
-                    ("agent", "Mailing services are out of scope — captured for CSR.", "sent"),
-                    ("agent_to_customer", "Postcards: confirmed. Mailing services aren't something we offer in-house — our CSR will follow up about that part.", "sent"),
-                ],
-                "flag": None,
-            },
-            {
-                "job_id_suffix": "02",
-                "phase": "done",
-                "status": "done",
-                "rush": False,
-                "due_offset_days": -30,
-                "created_offset_days": -45,
-                "declaration_source": (
-                    "#lang shoptalk\n"
-                    "job \"Delgado Open House Postcard\" {\n"
-                    "  type:        postcard\n"
-                    "  finish-size: 5in × 3.5in\n"
-                    "  quantity:    500\n"
-                    "  stock:       80-gloss-cover\n"
-                    "}\n"
-                ),
-                "action_plan": "(job \"Delgado Open House Postcard\" (type postcard))",
-                "attachments_metadata": [],
-                "out_of_scope_notes": [],
-                "messages": [
-                    ("user", "500 of the small ones for our open house.", "sent"),
-                ],
-                "flag": None,
-            },
-        ],
-    },
-    {
-        "name": "Cindy Park",
-        "email": "cpark@campaignhq.com",
-        "phone": "555-0102",
-        "notes": (
-            "Political-print customer; campaigns run on tight deadlines. "
-            "Push cards (flat-card type) are her standard ask."
-        ),
-        "jobs": [
-            {
-                "job_id_suffix": "01",
-                "phase": "done",
-                "status": "done",
-                "rush": True,
-                "due_offset_days": -21,
-                "created_offset_days": -28,
-                "declaration_source": (
-                    "#lang shoptalk\n"
-                    "job \"Park Push Card\" {\n"
-                    "  type:        flat-card\n"
-                    "  finish-size: 4in × 9in\n"
-                    "  quantity:    20000\n"
-                    "  stock:       100-gloss-cover\n"
-                    "  rush:        true\n"
-                    "}\n"
-                ),
-                "action_plan": (
-                    "(job \"Park Push Card\" (type flat-card) "
-                    "(finish-size 4in 9in) (quantity 20000) (rush true))"
-                ),
-                "attachments_metadata": [
-                    {"filename": "push-card-front.pdf", "pages": 1, "color_space": "CMYK", "has_bleed": True},
-                    {"filename": "push-card-back.pdf", "pages": 1, "color_space": "CMYK", "has_bleed": True},
-                ],
-                "out_of_scope_notes": [],
-                "messages": [
-                    ("user", "20k 4×9 push cards by Wednesday. CMYK PDFs attached.", "sent"),
-                    ("agent", "Date validated; rush flag set. Stock matched.", "sent"),
-                ],
-                "flag": None,
-            },
-        ],
-    },
-    {
-        "name": "Walk-in Customer",
-        "email": "walkin@voomgroup.com",
-        "phone": "",
-        "notes": (
-            "Anonymous walk-in inquiry placeholder. Used to test the "
-            "name-only lookup path in the dashboard."
-        ),
-        "jobs": [],
-    },
-]
+    Path override: SEED_DATA_PATH env var. Default: seed_data.json at
+    the repo root. Missing file → fail loud with a pointer to the
+    .example stub.
+    """
+    override = os.environ.get("SEED_DATA_PATH")
+    path = Path(override).expanduser().resolve() if override else REPO_ROOT / "seed_data.json"
+    if not path.exists():
+        raise SystemExit(
+            f"[seed_db] seed data not found at {path}.\n"
+            f"          Copy seed_data.json.example to seed_data.json, fill in "
+            f"your shop's customers + jobs, and re-run.\n"
+            f"          Override the path with SEED_DATA_PATH if needed."
+        )
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+CUSTOMERS: list[dict[str, Any]] = _load_customers()
+
 
 
 # ---------------------------------------------------------------------------

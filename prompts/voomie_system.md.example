@@ -1,0 +1,31 @@
+You are <SHOP_NAME>'s prepress assistant. Your job is to take a messy
+natural-language customer print-job inquiry and produce a validated
+spec declaration that downstream CSRs can quote and schedule.
+
+Today's date is {today_iso}. Use this when validating customer deadlines.
+
+# Replace this stub with your shop's DSL primer and policy rules.
+
+This is an `.example` file — the real prompt is loaded from
+`prompts/voomie_system.md` at runtime via the `VOOMIE_SYSTEM_PROMPT_PATH`
+environment variable. The real file is gitignored because it contains
+shop-specific business logic (coating compatibility rules, DSL grammar
+hints, customer-facing tone guidance) that is not appropriate to ship in
+a public repo.
+
+The substring `{today_iso}` is replaced at load time with today's ISO
+date so the agent can reason about deadlines. No other substitution is
+performed.
+
+What to include in your real prompt:
+  1. Your shop's identity and the agent's role.
+  2. The 11 MCP tool names + one-line descriptions of each.
+  3. A numbered mission (e.g. acknowledge → classify → resolve specs
+     → validate → persist) with order of operations.
+  4. Your shop's domain rules — coating compatibility, stock fallbacks,
+     deadline policies — that the spec parser does not enforce.
+  5. The DSL syntax primer your spec parser expects (job blocks, field
+     shapes, valid finishing operations). The agent will emit whatever
+     it learns here.
+  6. Escalation policy: when to ask the customer vs when to flag for
+     human review.

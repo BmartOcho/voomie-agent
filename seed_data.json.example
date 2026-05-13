@@ -1,0 +1,35 @@
+[
+  {
+    "name": "Example Customer",
+    "email": "customer@example.com",
+    "phone": "555-0000",
+    "notes": "One-line description of this customer's relationship with the shop.",
+    "jobs": [
+      {
+        "job_id_suffix": "01",
+        "phase": "ready_for_review",
+        "status": "ready_for_review",
+        "rush": false,
+        "due_offset_days": 14,
+        "created_offset_days": -1,
+        "declaration_source": "<replace with a valid spec source string>",
+        "action_plan": "<replace with the structured plan emitted by parse_shoptalk for that declaration>",
+        "attachments_metadata": [
+          {
+            "filename": "example.pdf",
+            "pages": 1,
+            "color_space": "CMYK",
+            "has_bleed": true
+          }
+        ],
+        "out_of_scope_notes": [],
+        "messages": [
+          ["user", "Original customer message body here.", "sent"],
+          ["agent", "Agent's reasoning / planning step here.", "sent"],
+          ["agent_to_customer", "Customer-facing draft reply here.", "draft"]
+        ],
+        "flag": null
+      }
+    ]
+  }
+]
