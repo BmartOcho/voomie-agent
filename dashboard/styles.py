@@ -120,6 +120,18 @@ def phase_pill(phase: str) -> str:
     )
 
 
+def state_dot(phase: str) -> str:
+    """Return an HTML <span> for the row's leading state dot.
+
+    Reuses phase_pill_class to derive the same color family the pill
+    uses, so dot + pill always agree. Drafting/validating phases get
+    the magenta pulse (via CSS animation), making the dot the only
+    moving element on the page.
+    """
+    cls = phase_pill_class(phase or "").replace("phase-", "dot-")
+    return f"<span class='state-dot {cls}'></span>"
+
+
 def phase_legend_pill(phase: str) -> str:
     """Sidebar-legend pill that always shows the full phase name.
 
@@ -437,13 +449,11 @@ STYLES = """
   background: var(--accent-soft);
   color: var(--accent-fg);
   border-color: var(--accent-border);
-  animation: voomie-pulse 1.6s ease-in-out infinite;
 }
 .phase-validating {
   background: var(--accent-soft);
   color: var(--accent-fg);
   border-color: var(--accent-border);
-  animation: voomie-pulse 1.6s ease-in-out infinite;
 }
 .phase-ready          { background: var(--ok-soft);      color: var(--ok-fg);      border-color: var(--ok-border); }
 .phase-clarification  { background: var(--warn-soft);    color: var(--warn-fg);    border-color: var(--warn-border); }
@@ -504,9 +514,52 @@ STYLES = """
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 0;
+  padding: 8px 10px;
   border-top: 1px dashed var(--border);
+  border-left: 3px solid transparent;
+  margin-left: -10px;     /* compensate for left-border width so content stays aligned */
+  padding-left: 7px;      /* with the group header above */
+  transition: background-color 120ms ease, border-left-color 120ms ease;
 }
+.child-row:hover {
+  background: var(--bg-2);
+}
+/* Fresh: child updated within the last 30 seconds. The left accent border
+   + bg lift makes recent activity scannable at a glance — exactly what
+   the queue is for. */
+.child-row-fresh {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+.child-row-fresh:hover {
+  background: var(--accent-soft);
+}
+
+/* State dot — small colored circle to the left of every row, redundant
+   visual encoding with the pill text. Drafting/validating phases get a
+   pulse here (instead of on the pill) so motion is contained to a single
+   small element rather than fading whole rows in/out. */
+.state-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px transparent;
+}
+.dot-ready         { background: var(--ok-fg); }
+.dot-clarification { background: var(--warn-fg); }
+.dot-human         { background: var(--danger-fg); }
+.dot-escalated     { background: var(--danger-fg); }
+.dot-done          { background: var(--neutral-fg); }
+.dot-other         { background: var(--neutral-fg); }
+.dot-drafting,
+.dot-validating {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  animation: voomie-pulse 1.6s ease-in-out infinite;
+}
+
 .child-id {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.85rem;
@@ -518,6 +571,19 @@ STYLES = """
   color: var(--fg-1);
   font-size: 0.9rem;
   flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.child-age {
+  color: var(--fg-2);
+  font-size: 0.72rem;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.child-age-fresh {
+  color: var(--accent-fg);
+  font-weight: 600;
 }
 .flag-badge {
   display: inline-block;

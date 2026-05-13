@@ -52,8 +52,16 @@ from dashboard.styles import (  # noqa: E402
     phase_legend_pill,
     phase_pill,
     role_badge,
+    state_dot,
     turn_status_badge,
 )
+
+# A row is "fresh" if it was updated within this many seconds. Fresh
+# rows get the accent left-border + bg lift so live activity is
+# scannable at a glance. 30s is a balance: long enough to catch typical
+# agent phase transitions (1–10s apart), short enough that stale rows
+# don't all linger as "fresh."
+_FRESH_WINDOW_SECS = 30
 
 # ---------------------------------------------------------------------------
 # Config
@@ -228,6 +236,15 @@ def _humanize_age(when: datetime | None) -> str:
     if secs < 86400:
         return f"{secs // 3600}h ago"
     return f"{secs // 86400}d ago"
+
+
+def _age_seconds(when: datetime | None) -> int | None:
+    """Return age in whole seconds, or None if `when` is missing."""
+    if when is None:
+        return None
+    if when.tzinfo is not None:
+        when = when.astimezone(timezone.utc).replace(tzinfo=None)
+    return int((datetime.utcnow() - when).total_seconds())
 
 
 def _job_summary(job: dict[str, Any]) -> str:
@@ -578,14 +595,26 @@ def render_queue_pane(jobs: list[dict[str, Any]]) -> None:
                     if flags else ""
                 )
 
+                child_updated = (
+                    _to_dt(child.get("updated_at"))
+                    or _to_dt(child.get("created_at"))
+                )
+                age_secs = _age_seconds(child_updated)
+                is_fresh = age_secs is not None and 0 <= age_secs < _FRESH_WINDOW_SECS
+                row_cls = "child-row child-row-fresh" if is_fresh else "child-row"
+                age_cls = "child-age child-age-fresh" if is_fresh else "child-age"
+                age_label = _humanize_age(child_updated)
+
                 row_l, row_r = st.columns([5, 1])
                 with row_l:
                     st.markdown(
-                        "<div class='child-row'>"
-                        f"<span class='child-id'>{jid}</span>"
+                        f"<div class='{row_cls}'>"
+                        f"{state_dot(phase)}"
                         f"{phase_pill(phase)}"
+                        f"<span class='child-id'>{jid}</span>"
                         f"<span class='child-summary'>{summary}</span>"
                         f"{flag_html}"
+                        f"<span class='{age_cls}'>{age_label}</span>"
                         "</div>",
                         unsafe_allow_html=True,
                     )
