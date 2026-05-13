@@ -605,8 +605,59 @@ STYLES = """
   color: var(--fg-2);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
+
+/* Compact two-line header — replaces the previous two-column
+   customer/job block. The intent: jid + state + age on line 1,
+   customer identity on line 2. Anything more belongs in the grid. */
+.detail-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.detail-header-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.detail-jid {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--fg-0);
+  letter-spacing: -0.01em;
+}
+.detail-rush-flag {
+  background: var(--danger-soft);
+  color: var(--danger-fg);
+  border: 1px solid var(--danger-border);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.detail-header-age {
+  color: var(--fg-2);
+  font-size: 0.78rem;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.detail-customer-name-inline {
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--fg-0);
+}
+.detail-customer-meta-inline {
+  color: var(--fg-1);
+  font-size: 0.85rem;
+}
+
+/* Legacy classes — preserved in case anything still renders them.
+   New code paths should prefer the *-inline variants above. */
 .detail-customer-name {
   font-size: 1.15rem;
   font-weight: 700;
@@ -618,14 +669,45 @@ STYLES = """
   font-size: 0.85rem;
   margin: 2px 0;
 }
+
 .detail-notes {
   background: var(--bg-2);
   border-left: 3px solid var(--accent);
   padding: 6px 10px;
   font-size: 0.85rem;
   border-radius: 4px;
-  margin-top: 4px;
+  margin: 4px 0 14px;
   color: var(--fg-0);
+}
+
+/* Two-column key:value grid used for both "Specs" (parsed from the
+   shoptalk declaration) and "Job" meta (parent / due / rush / status).
+   max-content for the label column keeps long values from pushing the
+   labels around. */
+.spec-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 14px;
+  font-size: 0.88rem;
+  padding: 6px 0 10px;
+}
+.spec-key {
+  color: var(--fg-2);
+  font-size: 0.74rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  align-self: center;
+}
+.spec-val {
+  color: var(--fg-0);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.86rem;
+}
+.empty-state-inline {
+  color: var(--fg-2);
+  font-size: 0.85rem;
+  font-style: italic;
+  padding: 4px 0;
 }
 
 /* ====================================================================

@@ -247,35 +247,55 @@ def _age_seconds(when: datetime | None) -> int | None:
     return int((datetime.utcnow() - when).total_seconds())
 
 
-def _job_summary(job: dict[str, Any]) -> str:
-    """One-line summary derived from declaration_source, or 'Drafting…'."""
-    decl = (job.get("declaration_source") or "").strip()
+_SPEC_KEYS = (
+    "type", "finish-size", "quantity", "stock", "coating",
+    "sides", "bleed", "due", "rush",
+)
+
+
+def _parse_declaration_specs(decl_source: str) -> dict[str, str]:
+    """Extract human-readable key:value pairs from a shoptalk declaration.
+
+    Substring-parses the top-level keys in _SPEC_KEYS — anything more
+    structural would re-implement the shoptalk parser, which lives in
+    the sibling repo. Returns an insertion-ordered dict keyed by raw
+    shoptalk key (e.g. "finish-size"); the detail-pane renderer
+    prettifies these for display.
+    """
+    decl = (decl_source or "").strip()
     if not decl:
-        return "Drafting…"
-    # Pluck a few human-friendly fields. The declaration is a shoptalk DSL
-    # block — extract type, finish-size, quantity, stock with simple substring
-    # parsing. Anything fancier and we'd be re-implementing the parser.
-    pieces: list[str] = []
-    for key in ("type", "finish-size", "quantity", "stock"):
+        return {}
+    out: dict[str, str] = {}
+    for key in _SPEC_KEYS:
         marker = f"{key}:"
         idx = decl.find(marker)
         if idx == -1:
             continue
         rest = decl[idx + len(marker):].splitlines()[0].strip()
-        # Trim trailing comments / braces.
         for cut in ("#", "}", "{"):
             if cut in rest:
                 rest = rest.split(cut, 1)[0].strip()
         if rest:
-            pieces.append(rest)
-    if not pieces:
-        # Fallback: first non-header, non-name line.
-        for line in decl.splitlines():
-            line = line.strip()
-            if line and not line.startswith(_DECLARATION_HEADER_PREFIX) and not line.startswith("job"):
-                return line[:80]
+            out[key] = rest
+    return out
+
+
+def _job_summary(job: dict[str, Any]) -> str:
+    """One-line summary derived from declaration_source, or 'Drafting…'."""
+    decl = (job.get("declaration_source") or "").strip()
+    if not decl:
         return "Drafting…"
-    return ", ".join(pieces)
+    specs = _parse_declaration_specs(decl)
+    summary_keys = ("type", "finish-size", "quantity", "stock")
+    pieces = [specs[k] for k in summary_keys if k in specs]
+    if pieces:
+        return ", ".join(pieces)
+    # Fallback: first non-header, non-name line.
+    for line in decl.splitlines():
+        line = line.strip()
+        if line and not line.startswith(_DECLARATION_HEADER_PREFIX) and not line.startswith("job"):
+            return line[:80]
+    return "Drafting…"
 
 
 def _group_jobs(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -644,6 +664,136 @@ def _render_code_block(label: str, body: str) -> None:
         st.code(body, language=None)
 
 
+def _render_detail_header(
+    job: dict[str, Any],
+    customer: dict[str, Any] | None,
+    n_customer_jobs: int,
+) -> None:
+    """Compact one-glance header at the top of the detail pane.
+
+    Single line: job id + phase pill + age. Second line: customer +
+    relationship + email/phone. Optional third: shop relationship notes
+    as a highlighted block.
+    """
+    jid = job.get("_id", "—")
+    phase = job.get("phase") or "unknown"
+    rush_label = (
+        "<span class='detail-rush-flag'>🚨 RUSH</span>" if job.get("rush") else ""
+    )
+    updated = _to_dt(job.get("updated_at")) or _to_dt(job.get("created_at"))
+    age_label = _humanize_age(updated)
+
+    cust_name = (customer or {}).get("name") or "Unknown customer"
+    cust_email = (customer or {}).get("email") or "—"
+    cust_phone = (customer or {}).get("phone") or "—"
+
+    if customer and "walkin" in (cust_email or "").lower():
+        rel_kind = "WALK-IN"
+    elif n_customer_jobs > 1:
+        rel_kind = "RETURNING"
+    else:
+        rel_kind = "NEW"
+
+    jobs_suffix = "job" if n_customer_jobs == 1 else "jobs"
+
+    st.markdown(
+        "<div class='detail-header'>"
+        "<div class='detail-header-row'>"
+        f"<span class='detail-jid'>{jid}</span>"
+        f"{phase_pill(phase)}"
+        f"{rush_label}"
+        f"<span class='detail-header-age'>updated {age_label}</span>"
+        "</div>"
+        "<div class='detail-header-row'>"
+        f"<span class='detail-customer-name-inline'>{cust_name}</span>"
+        f"{customer_badge(rel_kind)}"
+        f"<span class='detail-customer-meta-inline'>"
+        f"📧 {cust_email}  ·  📞 {cust_phone}  ·  "
+        f"{n_customer_jobs} {jobs_suffix} in history"
+        "</span>"
+        "</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    if customer:
+        notes = (customer.get("shop_relationship_notes") or "").strip()
+        if notes:
+            st.markdown(
+                f"<div class='detail-notes'>📝 {notes}</div>",
+                unsafe_allow_html=True,
+            )
+
+
+# Pretty labels for the shoptalk spec keys parsed out of declaration_source.
+# Mirror the casing the CSR uses in plain English, not the DSL's hyphenation.
+_SPEC_LABEL_MAP = {
+    "type":        "Type",
+    "finish-size": "Size",
+    "quantity":    "Quantity",
+    "stock":       "Stock",
+    "coating":     "Coating",
+    "sides":       "Sides",
+    "bleed":       "Bleed",
+    "due":         "Due (declared)",
+    "rush":        "Rush",
+}
+
+
+def _render_specs_grid(job: dict[str, Any]) -> None:
+    """Two-column grid: parsed declaration specs left, job meta right.
+
+    Replaces the previous dump of declaration_source at the top of the
+    pane. Source stays available in the collapsed expander at the
+    bottom for power users; the grid is the calmer at-a-glance view.
+    """
+    specs = _parse_declaration_specs(job.get("declaration_source") or "")
+    parent = job.get("parent_id") or "— (standalone)"
+    status = job.get("status") or "—"
+    due = job.get("due_date") or "—"
+    rush_meta = "yes" if job.get("rush") else "no"
+
+    col_specs, col_meta = st.columns([1, 1])
+    with col_specs:
+        st.markdown(
+            "<div class='detail-block-label'>Specs</div>",
+            unsafe_allow_html=True,
+        )
+        if not specs:
+            st.markdown(
+                "<div class='empty-state-inline'>"
+                "No declaration parsed yet — agent is still drafting."
+                "</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            rows = "".join(
+                f"<div class='spec-key'>{_SPEC_LABEL_MAP.get(k, k)}</div>"
+                f"<div class='spec-val'>{_escape(v)}</div>"
+                for k, v in specs.items()
+            )
+            st.markdown(
+                f"<div class='spec-grid'>{rows}</div>",
+                unsafe_allow_html=True,
+            )
+
+    with col_meta:
+        st.markdown(
+            "<div class='detail-block-label'>Job</div>",
+            unsafe_allow_html=True,
+        )
+        rows_html = (
+            f"<div class='spec-key'>Parent</div><div class='spec-val'>{parent}</div>"
+            f"<div class='spec-key'>Due</div><div class='spec-val'>{due}</div>"
+            f"<div class='spec-key'>Rush</div><div class='spec-val'>{rush_meta}</div>"
+            f"<div class='spec-key'>Status</div><div class='spec-val'>{status}</div>"
+        )
+        st.markdown(
+            f"<div class='spec-grid'>{rows_html}</div>",
+            unsafe_allow_html=True,
+        )
+
+
 def render_detail_pane(jobs: list[dict[str, Any]]) -> None:
     selected = st.session_state.get("selected_job_id")
     st.markdown("### 🔎 Job Detail")
@@ -666,62 +816,30 @@ def render_detail_pane(jobs: list[dict[str, Any]]) -> None:
     customer = fetch_customer(job.get("customer_id"))
     n_customer_jobs = count_customer_jobs(job.get("customer_id"))
     flags = fetch_flags(selected)
+    messages = fetch_conversation(selected)
 
-    # ----- Customer + metadata header ------------------------------------
-    col_cust, col_meta = st.columns([1, 1])
-    with col_cust:
-        st.markdown("<div class='detail-block-label'>Customer</div>", unsafe_allow_html=True)
-        if customer:
-            st.markdown(
-                f"<p class='detail-customer-name'>{customer.get('name', '—')}</p>"
-                f"<p class='detail-customer-meta'>📧 {customer.get('email') or '—'}"
-                f"  ·  📞 {customer.get('phone') or '—'}</p>"
-                f"<p class='detail-customer-meta'>Recent jobs: {n_customer_jobs}</p>",
-                unsafe_allow_html=True,
-            )
-            notes = (customer.get("shop_relationship_notes") or "").strip()
-            if notes:
-                st.markdown(
-                    f"<div class='detail-notes'>📝 {notes}</div>",
-                    unsafe_allow_html=True,
-                )
-        else:
-            st.markdown(
-                "<p class='detail-customer-meta'>No customer record linked.</p>",
-                unsafe_allow_html=True,
-            )
+    # ----- 1. Compact header --------------------------------------------
+    _render_detail_header(job, customer, n_customer_jobs)
 
-    with col_meta:
-        st.markdown("<div class='detail-block-label'>Job</div>", unsafe_allow_html=True)
-        rush_label = "🚨 RUSH" if job.get("rush") else ""
-        due = job.get("due_date") or "—"
+    # ----- 2. Hero block: pending draft reply (action zone) -------------
+    # Lifted out of the conversation thread so the action is the first
+    # thing the CSR sees on a job that needs their input.
+    drafts = [
+        (i, m) for i, m in enumerate(messages)
+        if m.get("role") == "agent_to_customer" and m.get("status") == "draft"
+    ]
+    for idx, draft in drafts:
+        _render_draft_reply(selected, idx, draft)
+
+    # ----- 3. Specs + job meta grid -------------------------------------
+    _render_specs_grid(job)
+
+    # ----- 4. Flags ------------------------------------------------------
+    if flags:
         st.markdown(
-            f"<p class='detail-customer-name'>{job.get('_id', '—')} {rush_label}</p>"
-            f"<p class='detail-customer-meta'>Parent: "
-            f"{job.get('parent_id') or '— (standalone)'}</p>"
-            f"<p class='detail-customer-meta'>Status: "
-            f"<b>{job.get('status', '—')}</b>  ·  Phase: "
-            f"{phase_pill(job.get('phase') or 'unknown')}</p>"
-            f"<p class='detail-customer-meta'>Due: {due}</p>",
+            "<div class='detail-block-label' style='margin-top:14px;'>⚑ Flags</div>",
             unsafe_allow_html=True,
         )
-
-    st.markdown("<hr class='section-divider'/>", unsafe_allow_html=True)
-
-    # ----- Declaration + action plan -------------------------------------
-    _render_code_block("📜 shoptalk declaration", job.get("declaration_source") or "")
-    _render_code_block("🧮 action plan", job.get("action_plan") or "")
-
-    # ----- Out-of-scope notes --------------------------------------------
-    notes = job.get("out_of_scope_notes") or []
-    if notes:
-        st.markdown("<div class='detail-block-label'>Out-of-scope notes</div>", unsafe_allow_html=True)
-        for n in notes:
-            st.markdown(f"- {n}")
-
-    # ----- Flags ---------------------------------------------------------
-    if flags:
-        st.markdown("<div class='detail-block-label'>⚑ Flags</div>", unsafe_allow_html=True)
         for f in flags:
             st.markdown(
                 "<div class='flag-card'>"
@@ -731,39 +849,46 @@ def render_detail_pane(jobs: list[dict[str, Any]]) -> None:
                 unsafe_allow_html=True,
             )
 
-    # ----- Conversation --------------------------------------------------
-    st.markdown("<div class='detail-block-label'>💬 Conversation</div>", unsafe_allow_html=True)
-    messages = fetch_conversation(selected)
+    # ----- 5. Out-of-scope notes ----------------------------------------
+    notes = job.get("out_of_scope_notes") or []
+    if notes:
+        st.markdown(
+            "<div class='detail-block-label' style='margin-top:14px;'>Out-of-scope notes</div>",
+            unsafe_allow_html=True,
+        )
+        for n in notes:
+            st.markdown(f"- {n}")
+
+    # ----- 6. Conversation (chronological) ------------------------------
+    st.markdown(
+        "<div class='detail-block-label' style='margin-top:14px;'>💬 Conversation</div>",
+        unsafe_allow_html=True,
+    )
     if not messages:
         st.markdown(
             "<div class='empty-state'>No conversation turns yet.</div>",
             unsafe_allow_html=True,
         )
-        return
+    else:
+        for m in messages:
+            ts = _to_dt(m.get("timestamp"))
+            ts_label = ts.strftime("%H:%M:%S") if ts else "—"
+            st.markdown(
+                "<div class='turn'>"
+                "<div class='turn-header'>"
+                f"{role_badge(m.get('role', ''))}"
+                f"{turn_status_badge(m.get('status', ''))}"
+                f"<span class='turn-time'>{ts_label}</span>"
+                "</div>"
+                f"<div class='turn-content'>{_escape(m.get('content', ''))}</div>"
+                "</div>",
+                unsafe_allow_html=True,
+            )
 
-    # Surface unsent draft replies at the top.
-    drafts = [
-        (i, m) for i, m in enumerate(messages)
-        if m.get("role") == "agent_to_customer" and m.get("status") == "draft"
-    ]
-    for idx, draft in drafts:
-        _render_draft_reply(selected, idx, draft)
-
-    # Then render the full thread chronologically.
-    for m in messages:
-        ts = _to_dt(m.get("timestamp"))
-        ts_label = ts.strftime("%H:%M:%S") if ts else "—"
-        st.markdown(
-            "<div class='turn'>"
-            "<div class='turn-header'>"
-            f"{role_badge(m.get('role', ''))}"
-            f"{turn_status_badge(m.get('status', ''))}"
-            f"<span class='turn-time'>{ts_label}</span>"
-            "</div>"
-            f"<div class='turn-content'>{_escape(m.get('content', ''))}</div>"
-            "</div>",
-            unsafe_allow_html=True,
-        )
+    # ----- 7. Raw source (expert / debug) -------------------------------
+    st.markdown("<hr class='section-divider'/>", unsafe_allow_html=True)
+    _render_code_block("📜 shoptalk declaration", job.get("declaration_source") or "")
+    _render_code_block("🧮 action plan", job.get("action_plan") or "")
 
 
 def _escape(s: str) -> str:
