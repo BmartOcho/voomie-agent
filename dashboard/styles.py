@@ -760,6 +760,41 @@ h1.voomie-wordmark {
   background: var(--process-m-soft);
 }
 
+/* Working — agent is actively processing this job. A soft magenta
+   gradient sweeps across the row bg on a 2.8s cycle. Combined with
+   the pulsing state dot (1.4s), the row reads as "alive" without
+   ever shouting.
+
+   Stagger via --row-index (set inline on each working row by
+   render_queue_list). animation-delay uses NEGATIVE multiplication
+   so each row starts the cycle at a different point — three
+   simultaneous working rows look like ambient activity, not
+   three rows flickering in lockstep. */
+.row-working {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--process-m-glow) 50%,
+    transparent 100%
+  );
+  background-size: 60% 100%;
+  background-repeat: no-repeat;
+  background-position: -150% 0;
+  animation: voomie-row-shimmer 2.8s linear infinite;
+  animation-delay: calc(var(--row-index, 0) * -0.45s);
+}
+/* Selected wins over working — keep the magenta left bar visible
+   and don't compound a sweep on top of the ink-2 selected bg. */
+.row-selected.row-working {
+  background-image: none;
+  animation: none;
+}
+
+@keyframes voomie-row-shimmer {
+  0%   { background-position: -150% 0; }
+  100% { background-position:  250% 0; }
+}
+
 /* Row internals. The grid template above defines six slots:
    [state-dot] [jid] [summary] [flag] [tag] [age]
    The summary fills the flex column; everything else hugs its content. */

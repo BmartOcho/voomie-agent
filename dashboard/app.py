@@ -46,9 +46,11 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from dashboard.styles import (  # noqa: E402
+    DRAFTING_PHASES,
     PHASE_BUCKET_ORDER,
     PHASE_BUCKETS,
     STYLES,
+    VALIDATING_PHASES,
     customer_badge,
     phase_legend_pill,
     phase_pill,
@@ -642,6 +644,14 @@ def render_queue_list(jobs: list[dict[str, Any]], bucket: str) -> None:
     if selected:
         st.session_state["selected_job_id"] = selected
 
+    # Global counter across all groups so working rows are staggered
+    # against each other regardless of which group card they live in.
+    # Each working row gets --row-index: N which the CSS shimmer rule
+    # uses as a negative animation-delay multiplier — every visible
+    # working row hits the bg-gradient sweep at a different point in
+    # its cycle, so motion reads as ambient activity not lockstep flicker.
+    working_row_index = 0
+
     for grp in groups:
         parent = grp["parent"]
         children = grp["children"]
@@ -685,19 +695,30 @@ def render_queue_list(jobs: list[dict[str, Any]], bucket: str) -> None:
                 age_secs = _age_seconds(child_updated)
                 is_fresh = age_secs is not None and 0 <= age_secs < _FRESH_WINDOW_SECS
                 is_selected = (jid == selected)
+                is_working = phase in DRAFTING_PHASES or phase in VALIDATING_PHASES
 
                 row_classes = ["row"]
                 if is_selected:
                     row_classes.append("row-selected")
                 if is_fresh:
                     row_classes.append("row-fresh")
+                if is_working:
+                    row_classes.append("row-working")
                 row_cls = " ".join(row_classes)
                 age_label = _humanize_age(child_updated)
 
                 href = _query_link(selected=jid)
 
+                # Stagger shimmer animation per working row. Non-working
+                # rows skip the inline style entirely so no animation
+                # is applied.
+                row_style = ""
+                if is_working:
+                    row_style = f" style='--row-index: {working_row_index};'"
+                    working_row_index += 1
+
                 st.markdown(
-                    f"<a href='{href}' target='_self' class='{row_cls}'>"
+                    f"<a href='{href}' target='_self' class='{row_cls}'{row_style}>"
                     f"{state_dot(phase)}"
                     f"<span class='row-jid'>{_escape(jid)}</span>"
                     f"<span class='row-summary'>{_escape(summary)}</span>"
