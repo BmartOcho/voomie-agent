@@ -418,6 +418,35 @@ body, button, input, textarea, select,
 [data-testid="stSidebar"] * { color: var(--paper-0); }
 [data-testid="stSidebar"] .stMarkdown small,
 [data-testid="stSidebar"] .stCaption { color: var(--paper-2); }
+[data-testid="stSidebar"] [data-testid="stCaption"] { color: var(--paper-2); }
+
+/* Sidebar uppercase caption label — replaces the old "⚙ Controls" h2
+   so the sidebar reads as background, not a competing surface. */
+.sidebar-label {
+  font: var(--type-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--paper-2);
+  margin: 4px 0 12px;
+}
+
+/* Spacer that pushes the Dev info expander to the bottom of the
+   sidebar. Streamlit's sidebar is a flex column, so a flex-grow
+   item between two real items expands to fill the gap. */
+.sidebar-spacer {
+  flex: 1 1 auto;
+  min-height: 24px;
+}
+
+/* Dev info expander — calmer header so it reads as a footer. */
+[data-testid="stSidebar"] [data-testid="stExpander"] details summary {
+  font: var(--type-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--paper-2);
+}
 
 .block-container {
   padding-top: 24px;

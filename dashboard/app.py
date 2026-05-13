@@ -52,8 +52,6 @@ from dashboard.styles import (  # noqa: E402
     STYLES,
     VALIDATING_PHASES,
     customer_badge,
-    phase_legend_pill,
-    phase_pill,
     role_badge,
     state_dot,
     state_tag,
@@ -1018,37 +1016,39 @@ def _render_draft_reply(job_id: str, message_index: int, draft: dict[str, Any]) 
 def render_sidebar() -> bool:
     """Returns True if auto-refresh is enabled.
 
-    Dark-only — the previous light/dark toggle was removed when the
-    palette moved to the CMYK-grounded ink/paper system.
+    Quiet companion — just the autorefresh toggle and a collapsed
+    Dev info expander for log paths. Phase legend was removed because
+    it duplicated the snapshot strip's filter chips, and the gear
+    emoji was traded for a plain caption label so the sidebar reads
+    as background rather than a competing surface.
     """
     with st.sidebar:
-        st.markdown("## ⚙️ Controls")
+        st.markdown(
+            "<div class='sidebar-label'>Settings</div>",
+            unsafe_allow_html=True,
+        )
         auto_refresh = st.toggle(
-            "Auto-refresh (1s)",
+            "Auto-refresh · 1s",
             value=True,
             key="autorefresh_toggle",
         )
-        st.divider()
-        st.markdown("### Phase legend")
-        for phase in (
-            "reading_message",
-            "validating_spec",
-            "ready_for_review",
-            "clarification_needed",
-            "human_review",
-            "escalated",
-            "done",
-        ):
-            st.markdown(phase_legend_pill(phase), unsafe_allow_html=True)
-        st.divider()
-        st.caption(
-            "Voomie agent runs spawn as background subprocesses.\n\n"
-            "Logs: /tmp/voomie-runs/<run-id>/\n\n"
-            "Uploads: /tmp/voomie-uploads/<run-id>/"
-        )
-        last = st.session_state.get("last_run_id")
-        if last:
-            st.caption(f"Last spawned run: `{last}`")
+
+        # Spacer pushes Dev info to the bottom of the sidebar so it
+        # reads as a footer, not a primary surface.
+        st.markdown("<div class='sidebar-spacer'></div>", unsafe_allow_html=True)
+
+        with st.expander("Dev info", expanded=False):
+            st.caption(
+                "Voomie agent runs spawn as background subprocesses."
+            )
+            st.code(
+                "logs:     /tmp/voomie-runs/<run-id>/\n"
+                "uploads:  /tmp/voomie-uploads/<run-id>/",
+                language=None,
+            )
+            last = st.session_state.get("last_run_id")
+            if last:
+                st.caption(f"Last spawned run: `{last}`")
     return auto_refresh
 
 
