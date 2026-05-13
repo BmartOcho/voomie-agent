@@ -592,10 +592,13 @@ def render_filter_chips(jobs: list[dict[str, Any]]) -> str:
     return current
 
 
-def render_queue_pane(jobs: list[dict[str, Any]]) -> None:
-    st.markdown("### 📋 Active Job Queue")
-    bucket = render_filter_chips(jobs)
+def render_queue_list(jobs: list[dict[str, Any]], bucket: str) -> None:
+    """Render the filtered + grouped queue list only (no snapshot strip).
 
+    Split out of render_queue_pane so main() can render the snapshot
+    strip at full page width while the queue list lives inside the
+    narrower split-pane left column when a job is selected.
+    """
     if not jobs:
         st.markdown(
             "<div class='empty-state'>"
@@ -848,10 +851,6 @@ def render_detail_pane(jobs: list[dict[str, Any]]) -> None:
     """
     selected = st.query_params.get("selected")
     if not selected:
-        # Belt-and-suspenders — main() should have skipped us, but if
-        # we get called with no selection (e.g., a future caller that
-        # forgets the gate), render a quiet inline hint rather than the
-        # old verbose empty state.
         return
 
     job = next((j for j in jobs if j.get("_id") == selected), None)
@@ -859,86 +858,96 @@ def render_detail_pane(jobs: list[dict[str, Any]]) -> None:
         st.warning(f"Job {selected} no longer exists.")
         return
 
-    st.markdown("<div class='detail-panel'>", unsafe_allow_html=True)
-
-    customer = fetch_customer(job.get("customer_id"))
-    n_customer_jobs = count_customer_jobs(job.get("customer_id"))
-    flags = fetch_flags(selected)
-    messages = fetch_conversation(selected)
-
-    # ----- 1. Compact header --------------------------------------------
-    _render_detail_header(job, customer, n_customer_jobs)
-
-    # ----- 2. Hero block: pending draft reply (action zone) -------------
-    # Lifted out of the conversation thread so the action is the first
-    # thing the CSR sees on a job that needs their input.
-    drafts = [
-        (i, m) for i, m in enumerate(messages)
-        if m.get("role") == "agent_to_customer" and m.get("status") == "draft"
-    ]
-    for idx, draft in drafts:
-        _render_draft_reply(selected, idx, draft)
-
-    # ----- 3. Specs + job meta grid -------------------------------------
-    _render_specs_grid(job)
-
-    # ----- 4. Flags ------------------------------------------------------
-    if flags:
-        st.markdown(
-            "<div class='detail-block-label' style='margin-top:14px;'>⚑ Flags</div>",
-            unsafe_allow_html=True,
-        )
-        for f in flags:
-            st.markdown(
-                "<div class='flag-card'>"
-                f"<div class='flag-reason'>{f.get('reason', '—')}</div>"
-                f"<div class='flag-context'>{f.get('context', '')}</div>"
-                "</div>",
-                unsafe_allow_html=True,
-            )
-
-    # ----- 5. Out-of-scope notes ----------------------------------------
-    notes = job.get("out_of_scope_notes") or []
-    if notes:
-        st.markdown(
-            "<div class='detail-block-label' style='margin-top:14px;'>Out-of-scope notes</div>",
-            unsafe_allow_html=True,
-        )
-        for n in notes:
-            st.markdown(f"- {n}")
-
-    # ----- 6. Conversation (chronological) ------------------------------
+    # Anchor marker: the panel styling (.detail-panel-anchor + ...) hits
+    # the stVerticalBlock immediately following this empty div, so a
+    # single CSS rule wraps every subsequent Streamlit call in the
+    # function with the panel's bg + magenta left edge. A bare
+    # <div class='detail-panel'> rendered via st.markdown would NOT
+    # wrap subsequent calls — Streamlit closes its markdown container
+    # before the next call opens, so the wrapping div would self-close
+    # immediately. The marker-then-container pattern is the only
+    # reliable way inside Streamlit.
     st.markdown(
-        "<div class='detail-block-label' style='margin-top:14px;'>💬 Conversation</div>",
+        "<div class='detail-panel-anchor'></div>",
         unsafe_allow_html=True,
     )
-    if not messages:
-        st.markdown(
-            "<div class='empty-state'>No conversation turns yet.</div>",
-            unsafe_allow_html=True,
-        )
-    else:
-        for m in messages:
-            ts = _to_dt(m.get("timestamp"))
-            ts_label = ts.strftime("%H:%M:%S") if ts else "—"
+    panel = st.container()
+    with panel:
+        customer = fetch_customer(job.get("customer_id"))
+        n_customer_jobs = count_customer_jobs(job.get("customer_id"))
+        flags = fetch_flags(selected)
+        messages = fetch_conversation(selected)
+
+        # ----- 1. Compact header ----------------------------------------
+        _render_detail_header(job, customer, n_customer_jobs)
+
+        # ----- 2. Hero block: pending draft reply ----------------------
+        # Lifted out of the conversation thread so the action is the
+        # first thing the CSR sees on a job that needs their input.
+        drafts = [
+            (i, m) for i, m in enumerate(messages)
+            if m.get("role") == "agent_to_customer" and m.get("status") == "draft"
+        ]
+        for idx, draft in drafts:
+            _render_draft_reply(selected, idx, draft)
+
+        # ----- 3. Specs + job meta grid --------------------------------
+        _render_specs_grid(job)
+
+        # ----- 4. Flags ------------------------------------------------
+        if flags:
             st.markdown(
-                "<div class='turn'>"
-                "<div class='turn-header'>"
-                f"{role_badge(m.get('role', ''))}"
-                f"{turn_status_badge(m.get('status', ''))}"
-                f"<span class='turn-time'>{ts_label}</span>"
-                "</div>"
-                f"<div class='turn-content'>{_escape(m.get('content', ''))}</div>"
-                "</div>",
+                "<div class='detail-block-label' style='margin-top:14px;'>⚑ Flags</div>",
                 unsafe_allow_html=True,
             )
+            for f in flags:
+                st.markdown(
+                    "<div class='flag-card'>"
+                    f"<div class='flag-reason'>{_escape(f.get('reason', '—'))}</div>"
+                    f"<div class='flag-context'>{_escape(f.get('context', ''))}</div>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
 
-    # ----- 7. Raw source (expert / debug) -------------------------------
-    _render_code_block("shoptalk declaration", job.get("declaration_source") or "")
-    _render_code_block("action plan", job.get("action_plan") or "")
+        # ----- 5. Out-of-scope notes -----------------------------------
+        notes = job.get("out_of_scope_notes") or []
+        if notes:
+            st.markdown(
+                "<div class='detail-block-label' style='margin-top:14px;'>Out-of-scope notes</div>",
+                unsafe_allow_html=True,
+            )
+            for n in notes:
+                st.markdown(f"- {_escape(str(n))}")
 
-    # Close .detail-panel wrapper.
-    st.markdown("</div>", unsafe_allow_html=True)
+        # ----- 6. Conversation (chronological) -------------------------
+        st.markdown(
+            "<div class='detail-block-label' style='margin-top:14px;'>Conversation</div>",
+            unsafe_allow_html=True,
+        )
+        if not messages:
+            st.markdown(
+                "<div class='empty-state'>No conversation turns yet.</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            for m in messages:
+                ts = _to_dt(m.get("timestamp"))
+                ts_label = ts.strftime("%H:%M:%S") if ts else "—"
+                st.markdown(
+                    "<div class='turn'>"
+                    "<div class='turn-header'>"
+                    f"{role_badge(m.get('role', ''))}"
+                    f"{turn_status_badge(m.get('status', ''))}"
+                    f"<span class='turn-time'>{ts_label}</span>"
+                    "</div>"
+                    f"<div class='turn-content'>{_escape(m.get('content', ''))}</div>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+
+        # ----- 7. Raw source (expert / debug) --------------------------
+        _render_code_block("shoptalk declaration", job.get("declaration_source") or "")
+        _render_code_block("action plan", job.get("action_plan") or "")
 
 
 def _escape(s: str) -> str:
@@ -1040,6 +1049,16 @@ def main() -> None:
 
     jobs = fetch_all_jobs()
 
+    # Snapshot strip renders at full page width regardless of whether
+    # the detail panel is open — it's the page-wide filter affordance,
+    # not part of the queue column. The bucket it returns feeds into
+    # the queue list below.
+    st.markdown(
+        "<div class='queue-section-label'>Queue</div>",
+        unsafe_allow_html=True,
+    )
+    bucket = render_filter_chips(jobs)
+
     # Split-pane only when a job is selected; otherwise the queue
     # spans the full content width. 1.7 / 1 ratio gives the queue
     # ~63% of the area when both are showing — enough room for the
@@ -1049,11 +1068,11 @@ def main() -> None:
     if selected:
         col_queue, col_detail = st.columns([1.7, 1], gap="medium")
         with col_queue:
-            render_queue_pane(jobs)
+            render_queue_list(jobs, bucket)
         with col_detail:
             render_detail_pane(jobs)
     else:
-        render_queue_pane(jobs)
+        render_queue_list(jobs, bucket)
 
 
 # `streamlit run dashboard/app.py` executes the module as __main__, so this

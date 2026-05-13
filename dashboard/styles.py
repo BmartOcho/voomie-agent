@@ -549,6 +549,16 @@ h1.voomie-wordmark {
 .dot-ok   { background: var(--ready-fg);     box-shadow: 0 0 0 4px var(--ready-soft); }
 .dot-fail { background: var(--human-fg); box-shadow: 0 0 0 4px var(--human-soft); }
 
+/* Section label above the snapshot strip — uppercase caption rhythm. */
+.queue-section-label {
+  font: var(--type-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--paper-2);
+  margin: 8px 0 10px;
+}
+
 /* ====================================================================
    SNAPSHOT STRIP — stat tiles that double as filter chips.
    Each chip is an <a href="?filter=X"> so a click is a real URL change
@@ -866,19 +876,25 @@ h1.voomie-wordmark {
 
 /* ====================================================================
    DETAIL PANEL — split-pane right side.
-   The container has its own card depth (matching every other card on
-   the page) PLUS a 3px magenta left border so the visual link to the
-   selected row's left bar reads at a glance. Sticky top so the panel
-   stays in view as the queue scrolls.
+   Targeted via the anchor-sibling pattern: render_detail_pane drops
+   an empty <div class="detail-panel-anchor"> just before opening
+   st.container(), and this rule styles the IMMEDIATELY FOLLOWING
+   stVerticalBlock as the panel. A single bare <div class="detail-
+   panel"> via st.markdown wouldn't work — Streamlit closes its
+   markdown wrapper after each call, so the div would self-close.
    ==================================================================== */
-.detail-panel {
+.detail-panel-anchor + [data-testid="stVerticalBlock"] {
   background: var(--ink-1);
   border-radius: var(--radius-card);
   border-left: 3px solid var(--process-m);
-  padding: 22px 24px 24px;
+  padding: 22px 24px 24px !important;
   box-shadow: var(--shadow-card);
   position: sticky;
   top: 20px;
+}
+.detail-panel-anchor {
+  /* Marker only; takes no layout space. */
+  display: none;
 }
 .detail-close {
   margin-left: 6px;
