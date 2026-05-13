@@ -141,13 +141,21 @@ pip install -r requirements.txt
 
 ### Environment
 
-Create `.env`:
+Create `.env` (or source `~/.voomie-env` — same keys):
 
 ```
+# Core — required
 MONGODB_URI=mongodb+srv://<user>:<pass>@<cluster>.mongodb.net/voomie
-GCP_PROJECT=<your-project-id>
-GCP_LOCATION=us-central1
-SHOPTALK_PATH=/path/to/shoptalk
+GCP_PROJECT_ID=<your-project-id>
+GCP_REGION=us-central1
+SHOPTALK_REPO_PATH=/path/to/shoptalk
+
+# Prompt files — required; gitignored so each operator points at their own copy
+VOOMIE_SYSTEM_PROMPT_PATH=/path/to/voomie/prompts/system.md
+VOOMIE_TOOLS_PROMPT_PATH=/path/to/voomie/prompts/mcp-tool.md
+
+# Seed data — optional; defaults to ./seed_data.json at the repo root
+SEED_DATA_PATH=/path/to/seed_data.json
 ```
 
 ### Seed the database
@@ -161,11 +169,15 @@ Creates 5 customers (Chris Walton, Sandra Reyes, Frank Delgado, Cindy Park, Walk
 ### Run a fixture
 
 ```bash
-python scripts/run_fixture.py chris
-python scripts/run_fixture.py adv_a11_promptinjection
+# Chris Walton is the locked screen-recording target — runs via the POC script:
+python scripts/poc_agent.py
+
+# All other fixtures (cindy, frank, ambiguous, msg4, adv_a1…adv_a12) run via:
+python scripts/run_fixture.py --fixture cindy --out demo_cindy.json
+python scripts/run_fixture.py --fixture adv_a11_injection --out demo_a11.json
 ```
 
-17 fixtures available — see `scripts/run_fixture.py` for the full list.
+17 fixtures total — see `FIXTURES` in `scripts/run_fixture.py` for the full list of slugs.
 
 ### Launch the dashboard
 
