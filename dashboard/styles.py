@@ -396,7 +396,21 @@ body, button, input, textarea, select,
   margin-bottom: 12px;
 }
 
-[data-testid="stHeader"] { background: transparent; }
+/* Hide Streamlit's default toolbar (Stop / Deploy / hamburger) and
+   header chrome — judges should see only the dashboard surface, not
+   the Streamlit-runner UI. The container stays in the DOM (some
+   widgets rely on it for layout calculations) but is visually
+   collapsed. */
+[data-testid="stToolbar"],
+[data-testid="stDecoration"],
+[data-testid="stStatusWidget"] {
+  display: none !important;
+}
+[data-testid="stHeader"] {
+  background: transparent;
+  height: 0;
+  min-height: 0;
+}
 [data-testid="stSidebar"] {
   background: var(--ink-1);
   border-right: 1px solid var(--rule);
@@ -497,11 +511,15 @@ body, button, input, textarea, select,
   box-shadow: 0 0 16px 0 var(--process-m-glow);
   flex-shrink: 0;
 }
-.voomie-wordmark {
-  font: var(--type-display);
-  letter-spacing: -0.02em;
-  margin: 0;
-  color: var(--paper-0);
+/* Wordmark — uses !important so Streamlit's default h1/h2 rules
+   (font-size: 2.25rem etc. set on .stApp h1) don't override the
+   type-display token. */
+h1.voomie-wordmark {
+  font: var(--type-display) !important;
+  letter-spacing: -0.02em !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  color: var(--paper-0) !important;
 }
 .voomie-subtitle {
   font: var(--type-body-sm);
