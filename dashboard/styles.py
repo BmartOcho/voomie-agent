@@ -187,10 +187,16 @@ _TOKENS_DARK = """
   --bg-2:        #1A1A1A;
   --bg-3:        #050505;
 
-  /* Foreground */
+  /* Foreground
+     fg-2 audited 2026-05-13 for WCAG AA. The prior #71717A gave
+     4.10:1 on bg-0 / 3.91:1 on bg-1 — failed normal-text AA (4.5:1)
+     at the small font sizes used by captions, age stamps, spec-key
+     labels, and turn timestamps. Bumped to #8B8B92 → 5.85:1 / 5.58:1,
+     comfortably above AA while staying clearly below fg-1 in the
+     hierarchy. */
   --fg-0:        #FAFAFA;
   --fg-1:        #A1A1AA;
-  --fg-2:        #71717A;
+  --fg-2:        #8B8B92;
 
   /* Borders / dividers */
   --border:        #262626;
@@ -240,9 +246,12 @@ _TOKENS_LIGHT = """
   --bg-2:        #F4F4F5;
   --bg-3:        #0F172A;   /* code stays dark in both themes — easier to read shoptalk */
 
+  /* fg-2 audited 2026-05-13 — prior #71717A gave 4.63:1 on bg-0,
+     which passed AA but tightly. Bumped to #67676F (5.37:1 / 5.61:1)
+     for matched headroom with the dark theme. */
   --fg-0:        #0A0A0A;
   --fg-1:        #52525B;
-  --fg-2:        #71717A;
+  --fg-2:        #67676F;
 
   --border:        #E4E4E7;
   --border-strong: #D4D4D8;
