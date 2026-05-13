@@ -47,12 +47,12 @@ if str(REPO_ROOT) not in sys.path:
 from dashboard.styles import (  # noqa: E402
     PHASE_BUCKET_ORDER,
     PHASE_BUCKETS,
+    STYLES,
     customer_badge,
     phase_legend_pill,
     phase_pill,
     role_badge,
     state_dot,
-    theme_styles,
     turn_status_badge,
 )
 
@@ -83,12 +83,7 @@ st.set_page_config(
     page_icon="🖨️",
     layout="wide",
 )
-# Inject the theme tokens + component styles in one go. Reading the
-# theme from session_state at the top of the module (before sidebar
-# render) means the toggle change takes effect on the same rerun the
-# user clicks it, with no dark-then-light flicker.
-_active_theme = st.session_state.get("theme", "dark")
-st.markdown(theme_styles(_active_theme), unsafe_allow_html=True)
+st.markdown(STYLES, unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
@@ -948,51 +943,14 @@ def _render_draft_reply(job_id: str, message_index: int, draft: dict[str, Any]) 
 # ---------------------------------------------------------------------------
 
 
-def _on_theme_toggle_change() -> None:
-    """Mirror the toggle widget's state into st.session_state['theme'].
-
-    Streamlit fires on_change callbacks BEFORE the rerun-from-widget-
-    change kicks off the next script run. So by the time the script
-    re-executes from the top, session_state['theme'] is already the
-    new value and the top-of-module style injection picks it up on
-    the same rerun the user clicked. No flicker, no second rerun.
-    """
-    st.session_state["theme"] = (
-        "light" if st.session_state.get("theme_toggle", False) else "dark"
-    )
-
-
 def render_sidebar() -> bool:
     """Returns True if auto-refresh is enabled.
 
-    Theme toggle uses the on_change-callback pattern. The previous
-    imperative version (read widget value -> compare -> st.rerun())
-    deadlocked: passing both `value=` and `key=` to st.toggle in
-    Streamlit 1.37 makes the value param re-sync the widget every
-    rerun, and the explicit st.rerun() then re-applied the user's
-    intent — together with st_autorefresh ticking every 1s, the toggle
-    flipped continuously. The callback pattern owns the side effect
-    cleanly: Streamlit auto-reruns on widget change, the callback
-    fires first and updates session_state['theme'], no explicit rerun
-    or value-recomputation needed.
+    Dark-only — the previous light/dark toggle was removed when the
+    palette moved to the CMYK-grounded ink/paper system.
     """
     with st.sidebar:
         st.markdown("## ⚙️ Controls")
-
-        # Initialize linked state once. After this, the toggle widget
-        # owns 'theme_toggle' and the callback mirrors it into 'theme'.
-        if "theme" not in st.session_state:
-            st.session_state["theme"] = "dark"
-        if "theme_toggle" not in st.session_state:
-            st.session_state["theme_toggle"] = (st.session_state["theme"] == "light")
-
-        st.toggle(
-            "☀ Light mode",
-            key="theme_toggle",
-            on_change=_on_theme_toggle_change,
-            help="Default is dark. Toggle persists for this session only.",
-        )
-
         auto_refresh = st.toggle(
             "Auto-refresh (1s)",
             value=True,

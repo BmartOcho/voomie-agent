@@ -1,23 +1,32 @@
 """
 dashboard/styles.py — CSS for the Voomie CSR dashboard.
 
-Theme system: CSS custom properties on `:root` (dark default) with a
-`:root[data-theme="light"]` override block for the future toggle. Every
-color in the surface goes through `var(--...)` so the toggle in
-dashboard/app.py can flip the whole UI by setting one data-attribute.
+Dark-only color system grounded in CMYK process color theory. Every
+color token has a documented CMYK origin — the CSR's day is spent
+thinking in CMYK plates and our dashboard should reflect that. sRGB
+values are tuned to pass WCAG AA on the dark ink background, not
+literal CMYK→sRGB profile conversions (which would be muddier on
+screen).
 
-Brand accent is Process Magenta (#D8208C, the "M" plate in CMYK) — used
-as hairline accents only (focus rings, selected state, working dot,
-active filter chip), never as a large fill.
+Token families:
+  INK         — backgrounds. Rich black (C30 M30 Y30 K100), warm.
+  PAPER       — foregrounds. Uncoated text-stock white, not pure #FFF.
+  RULE        — dividers. Registration-thin.
+  PROCESS M   — brand accent (the 100M plate). CTA, selection, working.
+  READY       — 100C + 100Y plates → green. ready_for_review.
+  AWAITING    — 100Y plate alone → yellow. clarification_needed.
+  HUMAN       — 100M + 100Y plates → red. human_review / escalated.
+  PROCESS C   — tertiary accent (the 100C plate). Info / NEW badge / links.
+  DONE        — neutral gray. done / off-the-press.
 
 Status pill colors map to the SPEC.md/VALID_PHASES vocabulary:
-  • Drafting phases (magenta, pulsing): reading_message, checking_attachments,
-    looking_up_customer, resolving_stocks, resolving_presses,
-    checking_coatings, validating_dates, drafting_reply
-  • validating_spec (magenta, pulsing — same family as drafting)
-  • ready_for_review (green)
-  • clarification_needed (amber)
-  • human_review / escalated (red)
+  • Drafting phases (magenta, pulsing dot + row shimmer): reading_message,
+    checking_attachments, looking_up_customer, resolving_stocks,
+    resolving_presses, checking_coatings, validating_dates, drafting_reply
+  • validating_spec (magenta, same family as drafting)
+  • ready_for_review (green — solid dot)
+  • clarification_needed (yellow — open ring)
+  • human_review / escalated (red — breathing dot)
   • done (neutral gray)
 
 Inject once at the top of app.py via st.markdown(STYLES, unsafe_allow_html=True).
@@ -179,167 +188,116 @@ def turn_status_badge(status: str) -> str:
     return ""
 
 
-_TOKENS_DARK = """
+_TOKENS = """
 :root {
-  /* ----- TYPOGRAPHY ---------------------------------------------------
-     Geist + Geist Mono via Google Fonts. Geist is Vercel's neutral sans
-     — geometric without being cold, with strong weight contrast (400
-     through 800) for hierarchy. Geist Mono pairs with it at consistent
-     x-height, used for job IDs, code blocks, and tabular columns where
-     character width must stay even. System fallbacks ensure the page
-     stays usable if the CDN fails. */
+  /* ============================================================
+     TYPOGRAPHY — Geist + Geist Mono (see commit 2e85bac).
+     ============================================================ */
   --font-display: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-body:    'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono:    'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* Type scale — six steps with deliberate weight contrast.
-     Display heads and body cohabit in the same family; the perceived
-     hierarchy comes from weight (700/600/500/400) + size + tracking,
-     not from a serif/sans contrast that would feel literary. */
   --type-display:    700 26px/1.15  var(--font-display);    /* page title */
   --type-section:    600 20px/1.25  var(--font-display);    /* section heading */
   --type-subhead:    600 15px/1.30  var(--font-display);    /* card / block heading */
   --type-body:       400 14px/1.50  var(--font-body);       /* body */
   --type-body-sm:    400 13px/1.50  var(--font-body);       /* compact body */
   --type-caption:    500 11px/1.40  var(--font-body);       /* uppercase labels */
-  --tracking-caps:   0.08em;                                /* applied wherever caption text-transforms uppercase */
-
-  /* ----- SURFACE / FOREGROUND / BORDER tokens still here for now;
-     the CMYK-grounded palette lands in the next commit. ----- */
-  --bg-0:        #0A0A0A;
-  --bg-1:        #111111;
-  --bg-2:        #1A1A1A;
-  --bg-3:        #050505;
-
-  /* Foreground
-     fg-2 audited 2026-05-13 for WCAG AA. The prior #71717A gave
-     4.10:1 on bg-0 / 3.91:1 on bg-1 — failed normal-text AA (4.5:1)
-     at the small font sizes used by captions, age stamps, spec-key
-     labels, and turn timestamps. Bumped to #8B8B92 → 5.85:1 / 5.58:1,
-     comfortably above AA while staying clearly below fg-1 in the
-     hierarchy. */
-  --fg-0:        #FAFAFA;
-  --fg-1:        #A1A1AA;
-  --fg-2:        #8B8B92;
-
-  /* Borders / dividers */
-  --border:        #262626;
-  --border-strong: #333333;
-
-  /* Brand accent — Process Magenta, the "M" in CMYK.
-     Used as hairline accents only (focus rings, selected indicators,
-     working-state dot, active filter chips). Never as large fills. */
-  --accent:        #D8208C;
-  --accent-fg:     #F472B6;
-  --accent-soft:   rgba(216, 32, 140, 0.12);
-  --accent-border: rgba(216, 32, 140, 0.35);
-
-  /* Status — green / amber / red / neutral. Linear-style calm pills. */
-  --ok-fg:         #4ADE80;
-  --ok-soft:       rgba( 34, 197,  94, 0.12);
-  --ok-border:     rgba( 74, 222, 128, 0.30);
-
-  --warn-fg:       #FBBF24;
-  --warn-soft:     rgba(245, 158,  11, 0.12);
-  --warn-border:   rgba(251, 191,  36, 0.30);
-
-  --danger-fg:     #F87171;
-  --danger-soft:   rgba(239,  68,  68, 0.15);
-  --danger-border: rgba(248, 113, 113, 0.35);
-
-  --neutral-fg:     #A1A1AA;
-  --neutral-soft:   #1F1F1F;
-  --neutral-border: #2A2A2A;
-
-  --role-user-fg:    #93C5FD;
-  --role-user-bg:    rgba( 59, 130, 246, 0.14);
-  --role-agent-fg:   #A1A1AA;
-  --role-agent-bg:   #1F1F1F;
-  --role-out-fg:     #4ADE80;
-  --role-out-bg:     rgba( 34, 197,  94, 0.12);
-
-  --pill-bg:     #1A1A1A;
-  --pill-fg:     #A1A1AA;
-}
-"""
-
-_TOKENS_LIGHT = """
-:root {
-  /* Typography mirrored from _TOKENS_DARK so var() lookups resolve
-     during the brief overlap before the light theme is removed. */
-  --font-display: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-body:    'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono:    'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  --type-display:    700 26px/1.15  var(--font-display);
-  --type-section:    600 20px/1.25  var(--font-display);
-  --type-subhead:    600 15px/1.30  var(--font-display);
-  --type-body:       400 14px/1.50  var(--font-body);
-  --type-body-sm:    400 13px/1.50  var(--font-body);
-  --type-caption:    500 11px/1.40  var(--font-body);
   --tracking-caps:   0.08em;
 
-  --bg-0:        #FAFAFA;
-  --bg-1:        #FFFFFF;
-  --bg-2:        #F4F4F5;
-  --bg-3:        #0F172A;   /* code stays dark in both themes — easier to read shoptalk */
+  /* ============================================================
+     COLOR — CMYK-grounded. Every token below cites its plate mix.
+     WCAG AA confirmed for every text consumer on ink-0 and ink-1.
+     ============================================================ */
 
-  /* fg-2 audited 2026-05-13 — prior #71717A gave 4.63:1 on bg-0,
-     which passed AA but tightly. Bumped to #67676F (5.37:1 / 5.61:1)
-     for matched headroom with the dark theme. */
-  --fg-0:        #0A0A0A;
-  --fg-1:        #52525B;
-  --fg-2:        #67676F;
+  /* INK — Background system.
+     A pressroom "rich black" is C30 M30 Y30 K100, built from all four
+     plates and warmer/deeper than pure K. Our ink-0 carries a faint
+     M lean so it reads as press black, not monitor black. */
+  --ink-0:        #0B0A0E;   /* page bg                  (rich black) */
+  --ink-1:        #131218;   /* card / container surface (+1) */
+  --ink-2:        #1B1A22;   /* raised surface / hover   (+2) */
+  --ink-3:        #07060A;   /* deepest                  (K plate solid) */
 
-  --border:        #E4E4E7;
-  --border-strong: #D4D4D8;
+  /* PAPER — Foreground system.
+     Uncoated text stock is never pure #FFFFFF — it carries warmth
+     from fiber. Pulling paper-0 toward cream lets the surface read
+     as page-against-ink, not pixels-against-screen. */
+  --paper-0:      #F2EDE3;   /* primary text (uncoated text-stock white) */
+  --paper-1:      #B8B4AC;   /* secondary text */
+  --paper-2:      #8A8680;   /* muted — passes AA at body sizes (5.45:1 on ink-0) */
 
-  --accent:        #C2185B;
-  --accent-fg:     #C2185B;
-  --accent-soft:   rgba(216, 32, 140, 0.10);
-  --accent-border: rgba(216, 32, 140, 0.40);
+  /* RULES — registration-thin dividers */
+  --rule:         #232128;
+  --rule-hi:      #322F3A;
 
-  --ok-fg:         #166534;
-  --ok-soft:       rgba( 22, 163,  94, 0.10);
-  --ok-border:     #BBF7D0;
+  /* PROCESS M — Brand accent (the M plate: 100M 0C 0Y 0K).
+     Used as hairline accents only — focus rings, selected indicators,
+     working pulse, active filter chip, primary CTA. Never a large fill. */
+  --process-m:        #D8208C;
+  --process-m-fg:     #F472B6;   /* readable variant for text (7.45:1 on ink-0) */
+  --process-m-soft:   rgba(216, 32, 140, 0.14);
+  --process-m-edge:   rgba(216, 32, 140, 0.45);
+  --process-m-glow:   rgba(216, 32, 140, 0.22);
 
-  --warn-fg:       #92400E;
-  --warn-soft:     rgba(245, 158,  11, 0.10);
-  --warn-border:   #FDE68A;
+  /* READY — 100C + 100Y plates → green.
+     Cyan + yellow overprint produces process green. */
+  --ready-fg:         #5BD389;
+  --ready-soft:       rgba( 91, 211, 137, 0.12);
+  --ready-edge:       rgba( 91, 211, 137, 0.32);
 
-  --danger-fg:     #991B1B;
-  --danger-soft:   rgba(220,  38,  38, 0.08);
-  --danger-border: #FECACA;
+  /* AWAITING CUSTOMER — 100Y plate alone */
+  --await-fg:         #F4C544;
+  --await-soft:       rgba(244, 197,  68, 0.12);
+  --await-edge:       rgba(244, 197,  68, 0.34);
 
-  --neutral-fg:     #52525B;
-  --neutral-soft:   #F4F4F5;
-  --neutral-border: #E4E4E7;
+  /* NEEDS HUMAN — 100M + 100Y plates → red */
+  --human-fg:         #F26666;
+  --human-soft:       rgba(242, 102, 102, 0.14);
+  --human-edge:       rgba(242, 102, 102, 0.36);
 
-  --role-user-fg:   #1E40AF;
-  --role-user-bg:   #DBEAFE;
-  --role-agent-fg:  #374151;
-  --role-agent-bg:  #E5E7EB;
-  --role-out-fg:    #166534;
-  --role-out-bg:    #DCFCE7;
+  /* PROCESS C — Tertiary accent (the C plate: 100C 0M 0Y 0K).
+     Reserved for informational moments: links, info chips, the NEW
+     customer badge, "press cylinder" affordances. Keeping it separate
+     from brand magenta means selection / working / CTA never compete
+     with informational signals. */
+  --process-c:        #4FB8C9;
+  --process-c-soft:   rgba( 79, 184, 201, 0.12);
+  --process-c-edge:   rgba( 79, 184, 201, 0.34);
 
-  --pill-bg:     #F3F4F6;
-  --pill-fg:     #374151;
+  /* DONE / NEUTRAL — "off the press" */
+  --done-fg:          #8A8680;
+  --done-soft:        #1B1A22;
+  --done-edge:        #2E2C36;
+
+  /* Role badges (conversation turns) */
+  --role-user-fg:     #93C5FD;
+  --role-user-bg:     rgba( 59, 130, 246, 0.14);
+  --role-agent-fg:    var(--paper-1);
+  --role-agent-bg:    var(--ink-2);
+  --role-out-fg:      var(--ready-fg);
+  --role-out-bg:      var(--ready-soft);
+
+  /* Connection pill */
+  --pill-bg:          var(--ink-2);
+  --pill-fg:          var(--paper-1);
+
+  /* Card depth recipes — subtle inner highlight + hairline border + drop.
+     The two-shadow stack lifts cards off the page background without
+     a heavy stroke. Selected variant adds a magenta edge + outer glow
+     so the visual link between a selected row and the detail panel is
+     immediate. */
+  --shadow-card:
+    0 1px 0 0 rgba(255, 255, 255, 0.03) inset,
+    0 0 0 1px var(--rule),
+    0 8px 24px -16px rgba(0, 0, 0, 0.60);
+  --shadow-card-selected:
+    0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+    0 0 0 1px var(--process-m-edge),
+    0 0 0 4px var(--process-m-glow),
+    0 12px 32px -16px rgba(216, 32, 140, 0.18);
 }
 """
-
-
-def theme_styles(theme: str) -> str:
-    """Return the full <style> block for the requested theme.
-
-    Tokens for exactly one theme are emitted (no CSS attribute selector
-    or media query needed) so the active theme always wins without
-    Streamlit-rerun flicker. Caller injects via st.markdown with
-    unsafe_allow_html=True.
-
-    `theme` accepts "dark" (default) or "light"; anything else falls
-    back to dark rather than rendering an unstyled page.
-    """
-    tokens = _TOKENS_LIGHT if theme == "light" else _TOKENS_DARK
-    return f"<style>{tokens}{_STYLES_BODY}</style>"
 
 
 _STYLES_BODY = """
@@ -358,8 +316,8 @@ _STYLES_BODY = """
    ==================================================================== */
 [data-testid="stAppViewContainer"],
 [data-testid="stApp"] {
-  background: var(--bg-0);
-  color: var(--fg-0);
+  background: var(--ink-0);
+  color: var(--paper-0);
   font-family: var(--font-body);
   font-feature-settings: "ss01" on, "cv11" on;
   -webkit-font-smoothing: antialiased;
@@ -394,75 +352,75 @@ body, button, input, textarea, select,
 [data-testid="stMarkdownContainer"] h3 {
   font: var(--type-section);
   letter-spacing: -0.01em;
-  color: var(--fg-0);
+  color: var(--paper-0);
   margin-top: 24px;
   margin-bottom: 12px;
 }
 
 [data-testid="stHeader"] { background: transparent; }
 [data-testid="stSidebar"] {
-  background: var(--bg-1);
-  border-right: 1px solid var(--border);
+  background: var(--ink-1);
+  border-right: 1px solid var(--rule);
 }
-[data-testid="stSidebar"] * { color: var(--fg-0); }
+[data-testid="stSidebar"] * { color: var(--paper-0); }
 [data-testid="stSidebar"] .stMarkdown small,
-[data-testid="stSidebar"] .stCaption { color: var(--fg-2); }
+[data-testid="stSidebar"] .stCaption { color: var(--paper-2); }
 
 .block-container { padding-top: 1.2rem; padding-bottom: 2.2rem; }
 
 /* Streamlit's bordered container — use as cards. */
 [data-testid="stVerticalBlockBorderWrapper"] {
-  background: var(--bg-1);
-  border: 1px solid var(--border) !important;
+  background: var(--ink-1);
+  border: 1px solid var(--rule) !important;
   border-radius: 10px;
 }
 
 /* Form inputs (paste-in pane) */
 [data-testid="stTextInput"] input,
 [data-testid="stTextArea"] textarea {
-  background: var(--bg-2) !important;
-  color: var(--fg-0) !important;
-  border: 1px solid var(--border) !important;
+  background: var(--ink-2) !important;
+  color: var(--paper-0) !important;
+  border: 1px solid var(--rule) !important;
 }
 [data-testid="stTextInput"] input:focus,
 [data-testid="stTextArea"] textarea:focus {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px var(--accent-soft) !important;
+  border-color: var(--process-m) !important;
+  box-shadow: 0 0 0 3px var(--process-m-soft) !important;
 }
 
 /* Selectbox */
 [data-testid="stSelectbox"] > div > div {
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  color: var(--fg-0);
+  background: var(--ink-2);
+  border: 1px solid var(--rule);
+  color: var(--paper-0);
 }
 
 /* Buttons — primary uses accent, secondary stays neutral */
 .stButton button[kind="primary"] {
-  background: var(--accent);
+  background: var(--process-m);
   color: #FFFFFF;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--process-m);
   font-weight: 600;
 }
 .stButton button[kind="primary"]:hover {
-  background: var(--accent-fg);
-  border-color: var(--accent-fg);
+  background: var(--process-m-fg);
+  border-color: var(--process-m-fg);
 }
 .stButton button[kind="secondary"] {
-  background: var(--bg-2);
-  color: var(--fg-0);
-  border: 1px solid var(--border);
+  background: var(--ink-2);
+  color: var(--paper-0);
+  border: 1px solid var(--rule);
 }
 .stButton button[kind="secondary"]:hover {
-  border-color: var(--accent-border);
-  color: var(--accent-fg);
+  border-color: var(--process-m-edge);
+  color: var(--process-m-fg);
 }
 
 /* File uploader */
 [data-testid="stFileUploaderDropzone"] {
-  background: var(--bg-2);
-  border: 1px dashed var(--border-strong);
-  color: var(--fg-1);
+  background: var(--ink-2);
+  border: 1px dashed var(--rule-hi);
+  color: var(--paper-1);
 }
 
 /* ====================================================================
@@ -472,11 +430,11 @@ body, button, input, textarea, select,
   font: var(--type-display);
   letter-spacing: -0.02em;
   margin: 0;
-  color: var(--fg-0);
+  color: var(--paper-0);
 }
 .voomie-subtitle {
   font: var(--type-body-sm);
-  color: var(--fg-1);
+  color: var(--paper-1);
   margin: 0;
 }
 .connection-pill {
@@ -489,7 +447,7 @@ body, button, input, textarea, select,
   font-weight: 600;
   background: var(--pill-bg);
   color: var(--pill-fg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--rule);
 }
 .connection-dot {
   display: inline-block;
@@ -497,8 +455,8 @@ body, button, input, textarea, select,
   height: 8px;
   border-radius: 50%;
 }
-.dot-ok   { background: var(--ok-fg);     box-shadow: 0 0 0 4px var(--ok-soft); }
-.dot-fail { background: var(--danger-fg); box-shadow: 0 0 0 4px var(--danger-soft); }
+.dot-ok   { background: var(--ready-fg);     box-shadow: 0 0 0 4px var(--ready-soft); }
+.dot-fail { background: var(--human-fg); box-shadow: 0 0 0 4px var(--human-soft); }
 
 /* ====================================================================
    FILTER CHIP STRIP (snapshot + filter)
@@ -525,10 +483,10 @@ body, button, input, textarea, select,
   justify-content: flex-start !important;
 }
 .filter-chip-strip-anchor + [data-testid="stHorizontalBlock"] .stButton button[kind="secondary"] {
-  background: var(--bg-1);
+  background: var(--ink-1);
 }
 .filter-chip-strip-anchor + [data-testid="stHorizontalBlock"] .stButton button[kind="secondary"]:hover {
-  background: var(--bg-2);
+  background: var(--ink-2);
 }
 
 /* ====================================================================
@@ -547,21 +505,21 @@ body, button, input, textarea, select,
   white-space: nowrap;
 }
 .phase-drafting {
-  background: var(--accent-soft);
-  color: var(--accent-fg);
-  border-color: var(--accent-border);
+  background: var(--process-m-soft);
+  color: var(--process-m-fg);
+  border-color: var(--process-m-edge);
 }
 .phase-validating {
-  background: var(--accent-soft);
-  color: var(--accent-fg);
-  border-color: var(--accent-border);
+  background: var(--process-m-soft);
+  color: var(--process-m-fg);
+  border-color: var(--process-m-edge);
 }
-.phase-ready          { background: var(--ok-soft);      color: var(--ok-fg);      border-color: var(--ok-border); }
-.phase-clarification  { background: var(--warn-soft);    color: var(--warn-fg);    border-color: var(--warn-border); }
-.phase-human          { background: var(--danger-soft);  color: var(--danger-fg);  border-color: var(--danger-border); }
-.phase-escalated      { background: var(--danger-soft);  color: var(--danger-fg);  border-color: var(--danger-border); }
-.phase-done           { background: var(--neutral-soft); color: var(--neutral-fg); border-color: var(--neutral-border); }
-.phase-other          { background: var(--neutral-soft); color: var(--neutral-fg); border-color: var(--neutral-border); }
+.phase-ready          { background: var(--ready-soft);      color: var(--ready-fg);      border-color: var(--ready-edge); }
+.phase-clarification  { background: var(--await-soft);    color: var(--await-fg);    border-color: var(--await-edge); }
+.phase-human          { background: var(--human-soft);  color: var(--human-fg);  border-color: var(--human-edge); }
+.phase-escalated      { background: var(--human-soft);  color: var(--human-fg);  border-color: var(--human-edge); }
+.phase-done           { background: var(--done-soft); color: var(--done-fg); border-color: var(--done-edge); }
+.phase-other          { background: var(--done-soft); color: var(--done-fg); border-color: var(--done-edge); }
 
 @keyframes voomie-pulse {
   0%,100% { opacity: 1.0; }
@@ -582,10 +540,10 @@ body, button, input, textarea, select,
   vertical-align: middle;
   background: transparent;
 }
-.badge-new       { color: var(--accent-fg); border: 1px solid var(--accent-border); }
-.badge-returning { color: var(--warn-fg);   border: 1px solid var(--warn-border); }
-.badge-walkin    { color: var(--fg-2);      border: 1px solid var(--border-strong); }
-.badge-other     { color: var(--fg-2);      border: 1px solid var(--border); }
+.badge-new       { color: var(--process-m-fg); border: 1px solid var(--process-m-edge); }
+.badge-returning { color: var(--await-fg);   border: 1px solid var(--await-edge); }
+.badge-walkin    { color: var(--paper-2);      border: 1px solid var(--rule-hi); }
+.badge-other     { color: var(--paper-2);      border: 1px solid var(--rule); }
 
 /* ====================================================================
    JOB GROUP CARDS / CHILD ROWS
@@ -599,15 +557,15 @@ body, button, input, textarea, select,
 .job-group-title {
   font-size: 1.05rem;
   font-weight: 700;
-  color: var(--fg-0);
+  color: var(--paper-0);
 }
 .job-group-customer {
-  color: var(--fg-1);
+  color: var(--paper-1);
   font-size: 0.88rem;
   margin-left: 8px;
 }
 .job-group-time {
-  color: var(--fg-2);
+  color: var(--paper-2);
   font-size: 0.78rem;
   font-style: italic;
 }
@@ -616,24 +574,24 @@ body, button, input, textarea, select,
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border-top: 1px dashed var(--border);
+  border-top: 1px dashed var(--rule);
   border-left: 3px solid transparent;
   margin-left: -10px;     /* compensate for left-border width so content stays aligned */
   padding-left: 7px;      /* with the group header above */
   transition: background-color 120ms ease, border-left-color 120ms ease;
 }
 .child-row:hover {
-  background: var(--bg-2);
+  background: var(--ink-2);
 }
 /* Fresh: child updated within the last 30 seconds. The left accent border
    + bg lift makes recent activity scannable at a glance — exactly what
    the queue is for. */
 .child-row-fresh {
-  border-left-color: var(--accent);
-  background: var(--accent-soft);
+  border-left-color: var(--process-m);
+  background: var(--process-m-soft);
 }
 .child-row-fresh:hover {
-  background: var(--accent-soft);
+  background: var(--process-m-soft);
 }
 
 /* State dot — small colored circle to the left of every row, redundant
@@ -648,28 +606,28 @@ body, button, input, textarea, select,
   flex-shrink: 0;
   box-shadow: 0 0 0 3px transparent;
 }
-.dot-ready         { background: var(--ok-fg); }
-.dot-clarification { background: var(--warn-fg); }
-.dot-human         { background: var(--danger-fg); }
-.dot-escalated     { background: var(--danger-fg); }
-.dot-done          { background: var(--neutral-fg); }
-.dot-other         { background: var(--neutral-fg); }
+.dot-ready         { background: var(--ready-fg); }
+.dot-clarification { background: var(--await-fg); }
+.dot-human         { background: var(--human-fg); }
+.dot-escalated     { background: var(--human-fg); }
+.dot-done          { background: var(--done-fg); }
+.dot-other         { background: var(--done-fg); }
 .dot-drafting,
 .dot-validating {
-  background: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: var(--process-m);
+  box-shadow: 0 0 0 3px var(--process-m-soft);
   animation: voomie-pulse 1.6s ease-in-out infinite;
 }
 
 .child-id {
   font-family: var(--font-mono);
   font-size: 13px;
-  color: var(--fg-1);
+  color: var(--paper-1);
   font-weight: 500;
   min-width: 110px;
 }
 .child-summary {
-  color: var(--fg-1);
+  color: var(--paper-1);
   font-size: 0.9rem;
   flex: 1;
   overflow: hidden;
@@ -677,20 +635,20 @@ body, button, input, textarea, select,
   white-space: nowrap;
 }
 .child-age {
-  color: var(--fg-2);
+  color: var(--paper-2);
   font-size: 0.72rem;
   margin-left: auto;
   font-variant-numeric: tabular-nums;
 }
 .child-age-fresh {
-  color: var(--accent-fg);
+  color: var(--process-m-fg);
   font-weight: 600;
 }
 .flag-badge {
   display: inline-block;
-  background: var(--danger-soft);
-  color: var(--danger-fg);
-  border: 1px solid var(--danger-border);
+  background: var(--human-soft);
+  color: var(--human-fg);
+  border: 1px solid var(--human-edge);
   border-radius: 999px;
   padding: 1px 8px;
   font-size: 0.7rem;
@@ -703,7 +661,7 @@ body, button, input, textarea, select,
 .detail-block-label {
   font: var(--type-caption);
   font-weight: 700;
-  color: var(--fg-2);
+  color: var(--paper-2);
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
   margin-bottom: 4px;
@@ -728,13 +686,13 @@ body, button, input, textarea, select,
   font-family: var(--font-mono);
   font-size: 18px;
   font-weight: 600;
-  color: var(--fg-0);
+  color: var(--paper-0);
   letter-spacing: -0.01em;
 }
 .detail-rush-flag {
-  background: var(--danger-soft);
-  color: var(--danger-fg);
-  border: 1px solid var(--danger-border);
+  background: var(--human-soft);
+  color: var(--human-fg);
+  border: 1px solid var(--human-edge);
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 0.72rem;
@@ -742,7 +700,7 @@ body, button, input, textarea, select,
   letter-spacing: 0.04em;
 }
 .detail-header-age {
-  color: var(--fg-2);
+  color: var(--paper-2);
   font-size: 0.78rem;
   margin-left: auto;
   font-variant-numeric: tabular-nums;
@@ -750,10 +708,10 @@ body, button, input, textarea, select,
 .detail-customer-name-inline {
   font-size: 0.98rem;
   font-weight: 600;
-  color: var(--fg-0);
+  color: var(--paper-0);
 }
 .detail-customer-meta-inline {
-  color: var(--fg-1);
+  color: var(--paper-1);
   font-size: 0.85rem;
 }
 
@@ -762,23 +720,23 @@ body, button, input, textarea, select,
 .detail-customer-name {
   font-size: 1.15rem;
   font-weight: 700;
-  color: var(--fg-0);
+  color: var(--paper-0);
   margin: 0;
 }
 .detail-customer-meta {
-  color: var(--fg-1);
+  color: var(--paper-1);
   font-size: 0.85rem;
   margin: 2px 0;
 }
 
 .detail-notes {
-  background: var(--bg-2);
-  border-left: 3px solid var(--accent);
+  background: var(--ink-2);
+  border-left: 3px solid var(--process-m);
   padding: 6px 10px;
   font-size: 0.85rem;
   border-radius: 4px;
   margin: 4px 0 14px;
-  color: var(--fg-0);
+  color: var(--paper-0);
 }
 
 /* Two-column key:value grid used for both "Specs" (parsed from the
@@ -793,7 +751,7 @@ body, button, input, textarea, select,
   padding: 6px 0 10px;
 }
 .spec-key {
-  color: var(--fg-2);
+  color: var(--paper-2);
   font: var(--type-caption);
   font-weight: 600;
   letter-spacing: var(--tracking-caps);
@@ -801,12 +759,12 @@ body, button, input, textarea, select,
   align-self: center;
 }
 .spec-val {
-  color: var(--fg-0);
+  color: var(--paper-0);
   font-family: var(--font-mono);
   font-size: 13px;
 }
 .empty-state-inline {
-  color: var(--fg-2);
+  color: var(--paper-2);
   font-size: 0.85rem;
   font-style: italic;
   padding: 4px 0;
@@ -816,11 +774,11 @@ body, button, input, textarea, select,
    CONVERSATION TURNS
    ==================================================================== */
 .turn {
-  border: 1px solid var(--border);
+  border: 1px solid var(--rule);
   border-radius: 6px;
   padding: 8px 12px;
   margin-bottom: 8px;
-  background: var(--bg-1);
+  background: var(--ink-1);
 }
 .turn-header {
   display: flex;
@@ -829,14 +787,14 @@ body, button, input, textarea, select,
   margin-bottom: 4px;
 }
 .turn-time {
-  color: var(--fg-2);
+  color: var(--paper-2);
   font-size: 0.72rem;
   margin-left: auto;
 }
 .turn-content {
   white-space: pre-wrap;
   font-size: 0.92rem;
-  color: var(--fg-0);
+  color: var(--paper-0);
   line-height: 1.45;
 }
 .role-badge {
@@ -850,7 +808,7 @@ body, button, input, textarea, select,
 .role-user           { background: var(--role-user-bg);  color: var(--role-user-fg); }
 .role-agent          { background: var(--role-agent-bg); color: var(--role-agent-fg); }
 .role-agent-customer { background: var(--role-out-bg);   color: var(--role-out-fg); }
-.role-other          { background: var(--neutral-soft);  color: var(--neutral-fg); }
+.role-other          { background: var(--done-soft);  color: var(--done-fg); }
 
 .turn-status {
   display: inline-block;
@@ -860,15 +818,15 @@ body, button, input, textarea, select,
   font-weight: 700;
   letter-spacing: 0.05em;
 }
-.status-draft   { background: var(--warn-soft);    color: var(--warn-fg);    border: 1px solid var(--warn-border); }
-.status-sent    { background: var(--neutral-soft); color: var(--neutral-fg); border: 1px solid var(--neutral-border); }
-.status-pending { background: var(--warn-soft);    color: var(--warn-fg);    border: 1px solid var(--warn-border); }
+.status-draft   { background: var(--await-soft);    color: var(--await-fg);    border: 1px solid var(--await-edge); }
+.status-sent    { background: var(--done-soft); color: var(--done-fg); border: 1px solid var(--done-edge); }
+.status-pending { background: var(--await-soft);    color: var(--await-fg);    border: 1px solid var(--await-edge); }
 
 /* Draft replies awaiting CSR review get the eye-catching treatment. */
 .draft-reply-card {
-  border: 1px solid var(--warn-border);
-  border-left: 4px solid var(--warn-fg);
-  background: var(--warn-soft);
+  border: 1px solid var(--await-edge);
+  border-left: 4px solid var(--await-fg);
+  background: var(--await-soft);
   padding: 12px 14px;
   border-radius: 8px;
   margin-bottom: 12px;
@@ -876,14 +834,14 @@ body, button, input, textarea, select,
 .draft-reply-label {
   font-size: 0.78rem;
   font-weight: 700;
-  color: var(--warn-fg);
+  color: var(--await-fg);
   letter-spacing: 0.04em;
   margin-bottom: 6px;
 }
 .draft-reply-body {
   white-space: pre-wrap;
   font-size: 0.95rem;
-  color: var(--fg-0);
+  color: var(--paper-0);
   line-height: 1.45;
   margin-bottom: 8px;
 }
@@ -894,7 +852,7 @@ body, button, input, textarea, select,
    ==================================================================== */
 .voomie-code {
   font-family: var(--font-mono);
-  background: var(--bg-3);
+  background: var(--ink-3);
   color: #E2E8F0;
   padding: 10px 14px;
   border-radius: 6px;
@@ -902,7 +860,7 @@ body, button, input, textarea, select,
   line-height: 1.4;
   overflow-x: auto;
   white-space: pre;
-  border: 1px solid var(--border);
+  border: 1px solid var(--rule);
 }
 .voomie-code .kw   { color: #93C5FD; font-weight: 700; }
 .voomie-code .lit  { color: #FCD34D; }
@@ -911,17 +869,17 @@ body, button, input, textarea, select,
 /* Streamlit's built-in code block (st.code) — match. */
 [data-testid="stCodeBlock"] pre,
 .stCodeBlock pre {
-  background: var(--bg-3) !important;
+  background: var(--ink-3) !important;
   color: #E2E8F0 !important;
-  border: 1px solid var(--border) !important;
+  border: 1px solid var(--rule) !important;
 }
 
 /* Expanders */
 .streamlit-expanderHeader,
 [data-testid="stExpander"] summary {
-  background: var(--bg-2);
-  color: var(--fg-0);
-  border: 1px solid var(--border);
+  background: var(--ink-2);
+  color: var(--paper-0);
+  border: 1px solid var(--rule);
   border-radius: 6px;
 }
 
@@ -930,17 +888,17 @@ body, button, input, textarea, select,
    ==================================================================== */
 .empty-state {
   text-align: center;
-  color: var(--fg-1);
+  color: var(--paper-1);
   padding: 28px 20px;
-  border: 1px dashed var(--border);
+  border: 1px dashed var(--rule);
   border-radius: 8px;
-  background: var(--bg-2);
+  background: var(--ink-2);
   font-size: 0.92rem;
 }
 .error-banner {
-  background: var(--danger-soft);
-  border: 1px solid var(--danger-border);
-  color: var(--danger-fg);
+  background: var(--human-soft);
+  border: 1px solid var(--human-edge);
+  color: var(--human-fg);
   padding: 10px 14px;
   border-radius: 6px;
   margin-bottom: 12px;
@@ -948,23 +906,20 @@ body, button, input, textarea, select,
 }
 .section-divider {
   border: none;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--rule);
   margin: 14px 0;
 }
 .flag-card {
-  border: 1px solid var(--danger-border);
-  background: var(--danger-soft);
+  border: 1px solid var(--human-edge);
+  background: var(--human-soft);
   padding: 8px 12px;
   border-radius: 6px;
   margin-bottom: 6px;
   font-size: 0.88rem;
 }
-.flag-reason { font-weight: 700; color: var(--danger-fg); }
-.flag-context { color: var(--fg-1); margin-top: 2px; white-space: pre-wrap; }
+.flag-reason { font-weight: 700; color: var(--human-fg); }
+.flag-context { color: var(--paper-1); margin-top: 2px; white-space: pre-wrap; }
 """
 
 
-# Backward-compatible default. New code paths should call theme_styles(theme)
-# directly; this alias is for any caller (or test) that just wants the dark
-# default without touching the toggle.
-STYLES = theme_styles("dark")
+STYLES = f"<style>{_TOKENS}{_STYLES_BODY}</style>"
