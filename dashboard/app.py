@@ -306,6 +306,20 @@ def _passes_filter(job: dict[str, Any], bucket: str) -> bool:
     return job.get("phase") in allowed
 
 
+def _bucket_counts(jobs: list[dict[str, Any]]) -> dict[str, int]:
+    """Job counts per filter bucket, including 'All'.
+
+    Counts every job exactly once based on its raw phase value. Jobs
+    whose phase falls outside every defined bucket (unknown phases)
+    appear only in the 'All' tally — that's intentional: they need
+    investigation, not a fake filter to hide behind.
+    """
+    counts: dict[str, int] = {"All": len(jobs)}
+    for name, allowed in PHASE_BUCKETS.items():
+        counts[name] = sum(1 for j in jobs if j.get("phase") in allowed)
+    return counts
+
+
 # ---------------------------------------------------------------------------
 # Agent subprocess spawn
 # ---------------------------------------------------------------------------
@@ -465,14 +479,43 @@ def render_paste_in_pane() -> None:
 # ---------------------------------------------------------------------------
 
 
+def render_filter_chips(jobs: list[dict[str, Any]]) -> str:
+    """Render the snapshot strip / filter chip row.
+
+    Returns the currently active bucket name. Each chip's label embeds
+    the live count, so the strip doubles as a one-glance "what's in
+    the queue right now" summary — the BRIX/snapshot affordance — and
+    as the filter control. Replaces the previous selectbox.
+    """
+    counts = _bucket_counts(jobs)
+    current = st.session_state.setdefault("queue_filter", "All")
+    chip_names = ["All", *PHASE_BUCKET_ORDER]
+
+    # Marker div so chip-strip-specific CSS can target this row of
+    # buttons without bleeding into other Streamlit buttons elsewhere.
+    st.markdown("<div class='filter-chip-strip-anchor'></div>", unsafe_allow_html=True)
+
+    cols = st.columns(len(chip_names))
+    for col, name in zip(cols, chip_names):
+        n = counts.get(name, 0)
+        is_active = (name == current)
+        label = f"{name}  ·  {n}"
+        with col:
+            if st.button(
+                label,
+                key=f"chip_{name}",
+                type="primary" if is_active else "secondary",
+                use_container_width=True,
+            ):
+                st.session_state["queue_filter"] = name
+                st.rerun()
+
+    return st.session_state["queue_filter"]
+
+
 def render_queue_pane(jobs: list[dict[str, Any]]) -> None:
     st.markdown("### 📋 Active Job Queue")
-    bucket = st.selectbox(
-        "Filter",
-        ["All", *PHASE_BUCKET_ORDER],
-        key="queue_filter",
-        label_visibility="collapsed",
-    )
+    bucket = render_filter_chips(jobs)
 
     if not jobs:
         st.markdown(

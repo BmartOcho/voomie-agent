@@ -388,6 +388,37 @@ STYLES = """
 .dot-fail { background: var(--danger-fg); box-shadow: 0 0 0 4px var(--danger-soft); }
 
 /* ====================================================================
+   FILTER CHIP STRIP (snapshot + filter)
+   Targets the row of buttons immediately following the anchor div in
+   render_filter_chips(). Tighter padding, smaller font, monospaced
+   count separator — reads as a snapshot strip, not a row of buttons.
+   ==================================================================== */
+.filter-chip-strip-anchor + [data-testid="stHorizontalBlock"] {
+  gap: 8px !important;
+  margin-bottom: 8px;
+}
+.filter-chip-strip-anchor + [data-testid="stHorizontalBlock"] [data-testid="stColumn"] {
+  padding: 0 !important;
+}
+.filter-chip-strip-anchor + [data-testid="stHorizontalBlock"] .stButton button {
+  padding: 8px 10px !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em;
+  border-radius: 8px !important;
+  min-height: 0 !important;
+  line-height: 1.2 !important;
+  text-align: left !important;
+  justify-content: flex-start !important;
+}
+.filter-chip-strip-anchor + [data-testid="stHorizontalBlock"] .stButton button[kind="secondary"] {
+  background: var(--bg-1);
+}
+.filter-chip-strip-anchor + [data-testid="stHorizontalBlock"] .stButton button[kind="secondary"]:hover {
+  background: var(--bg-2);
+}
+
+/* ====================================================================
    STATUS PILLS (phase)
    Linear-style: soft tinted bg + bright fg + faint border. The
    "drafting" / "validating" pills pulse to signal live agent work.
