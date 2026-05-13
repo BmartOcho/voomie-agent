@@ -54,6 +54,7 @@ from dashboard.styles import (  # noqa: E402
     phase_pill,
     role_badge,
     state_dot,
+    state_tag,
     turn_status_badge,
 )
 
@@ -535,6 +536,23 @@ def render_paste_in_pane() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _query_link(**overrides: str | None) -> str:
+    """Build a relative href that preserves existing query params with
+    overrides applied. None as a value removes a param.
+
+    Centralizing this means filter chip clicks preserve the current
+    selection and row clicks preserve the current filter — without
+    every callsite reassembling the param dict by hand.
+    """
+    params: dict[str, str] = {k: v for k, v in st.query_params.items()}
+    for k, v in overrides.items():
+        if v is None:
+            params.pop(k, None)
+        else:
+            params[k] = v
+    return "?" + urlencode(params) if params else "?"
+
+
 def render_filter_chips(jobs: list[dict[str, Any]]) -> str:
     """Render the snapshot strip / filter chip row.
 
@@ -561,7 +579,7 @@ def render_filter_chips(jobs: list[dict[str, Any]]) -> str:
     for name in chip_names:
         n = counts.get(name, 0)
         active_cls = " active" if name == current else ""
-        href = "?" + urlencode({"filter": name})
+        href = _query_link(filter=name)
         parts.append(
             f"<a href='{href}' target='_self' class='snap-chip{active_cls}'>"
             f"<div class='snap-count'>{n}</div>"
@@ -599,14 +617,17 @@ def render_queue_pane(jobs: list[dict[str, Any]]) -> None:
 
     groups = _group_jobs(filtered_jobs)
 
-    selected = st.session_state.get("selected_job_id")
+    # Selection lives in the URL alongside the filter, so each row is
+    # a single clickable anchor instead of "row markup + View button."
+    selected = st.query_params.get("selected")
+    if selected:
+        st.session_state["selected_job_id"] = selected
 
     for grp in groups:
         parent = grp["parent"]
         children = grp["children"]
         customer = fetch_customer(grp["customer_id"]) if grp["customer_id"] else None
 
-        # Decide customer badge.
         n_customer_jobs = count_customer_jobs(grp["customer_id"])
         if customer and "walkin" in (customer.get("email") or "").lower():
             badge = "WALK-IN"
@@ -620,11 +641,10 @@ def render_queue_pane(jobs: list[dict[str, Any]]) -> None:
         with st.container(border=True):
             st.markdown(
                 "<div class='job-group-header'>"
-                f"<div><span class='job-group-title'>📂 {parent}</span>"
-                f"<span class='job-group-customer'>{cust_label}</span>"
-                f"{customer_badge(badge)}</div>"
-                f"<div class='job-group-time'>updated "
-                f"{_humanize_age(grp['max_updated'])}</div>"
+                f"<span class='job-group-jid'>{parent}</span>"
+                f"<span class='job-group-customer'>{_escape(cust_label)}</span>"
+                f"{customer_badge(badge)}"
+                f"<span class='job-group-time'>updated {_humanize_age(grp['max_updated'])}</span>"
                 "</div>",
                 unsafe_allow_html=True,
             )
@@ -645,34 +665,29 @@ def render_queue_pane(jobs: list[dict[str, Any]]) -> None:
                 )
                 age_secs = _age_seconds(child_updated)
                 is_fresh = age_secs is not None and 0 <= age_secs < _FRESH_WINDOW_SECS
-                row_cls = "child-row child-row-fresh" if is_fresh else "child-row"
-                age_cls = "child-age child-age-fresh" if is_fresh else "child-age"
+                is_selected = (jid == selected)
+
+                row_classes = ["row"]
+                if is_selected:
+                    row_classes.append("row-selected")
+                if is_fresh:
+                    row_classes.append("row-fresh")
+                row_cls = " ".join(row_classes)
                 age_label = _humanize_age(child_updated)
 
-                row_l, row_r = st.columns([5, 1])
-                with row_l:
-                    st.markdown(
-                        f"<div class='{row_cls}'>"
-                        f"{state_dot(phase)}"
-                        f"{phase_pill(phase)}"
-                        f"<span class='child-id'>{jid}</span>"
-                        f"<span class='child-summary'>{summary}</span>"
-                        f"{flag_html}"
-                        f"<span class='{age_cls}'>{age_label}</span>"
-                        "</div>",
-                        unsafe_allow_html=True,
-                    )
-                with row_r:
-                    is_selected = (jid == selected)
-                    label = "Selected ✓" if is_selected else "View"
-                    if st.button(
-                        label,
-                        key=f"select_{jid}",
-                        type="secondary" if not is_selected else "primary",
-                        use_container_width=True,
-                    ):
-                        st.session_state["selected_job_id"] = jid
-                        st.rerun()
+                href = _query_link(selected=jid)
+
+                st.markdown(
+                    f"<a href='{href}' target='_self' class='{row_cls}'>"
+                    f"{state_dot(phase)}"
+                    f"<span class='row-jid'>{_escape(jid)}</span>"
+                    f"<span class='row-summary'>{_escape(summary)}</span>"
+                    f"{flag_html}"
+                    f"{state_tag(phase)}"
+                    f"<span class='row-age'>{age_label}</span>"
+                    "</a>",
+                    unsafe_allow_html=True,
+                )
 
 
 # ---------------------------------------------------------------------------

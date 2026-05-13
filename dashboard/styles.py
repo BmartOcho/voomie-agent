@@ -133,12 +133,44 @@ def state_dot(phase: str) -> str:
     """Return an HTML <span> for the row's leading state dot.
 
     Reuses phase_pill_class to derive the same color family the pill
-    uses, so dot + pill always agree. Drafting/validating phases get
+    uses, so dot + tag always agree. Drafting/validating phases get
     the magenta pulse (via CSS animation), making the dot the only
     moving element on the page.
     """
     cls = phase_pill_class(phase or "").replace("phase-", "dot-")
     return f"<span class='state-dot {cls}'></span>"
+
+
+# Maps raw phase -> the .tag-X CSS variant used for the inline status
+# tag on each queue row. Five families correspond 1:1 to the five
+# filter chips (working / ready / awaiting / human / done).
+_PHASE_TAG_CLS = {
+    "ready_for_review":      "ready",
+    "clarification_needed":  "awaiting",
+    "human_review":          "human",
+    "escalated":             "human",
+    "done":                  "done",
+}
+
+
+def state_tag(phase: str) -> str:
+    """Return an HTML <span> for the row's inline status tag.
+
+    Pairs with state_dot — the dot encodes status by color/shape, the
+    tag encodes it as a readable word. Together they pass redundant
+    encoding (color + text + shape) so colorblind users can still
+    parse state.
+    """
+    raw = phase or "unknown"
+    if raw in DRAFTING_PHASES or raw in VALIDATING_PHASES:
+        cls, label = "working", "WORKING"
+    elif raw in _PHASE_TAG_CLS:
+        cls = _PHASE_TAG_CLS[raw]
+        label = PHASE_DISPLAY_LABELS.get(raw, raw.replace("_", " ").upper())
+    else:
+        cls = "other"
+        label = raw.replace("_", " ").upper()
+    return f"<span class='tag tag-{cls}'>{label}</span>"
 
 
 def phase_legend_pill(phase: str) -> str:
@@ -631,104 +663,96 @@ body, button, input, textarea, select,
 .badge-other     { color: var(--paper-2);      border: 1px solid var(--rule); }
 
 /* ====================================================================
-   JOB GROUP CARDS / CHILD ROWS
+   JOB GROUP CARDS
    ==================================================================== */
 .job-group-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 6px;
+  gap: 10px;
+  padding-bottom: 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px dashed var(--rule);
 }
-.job-group-title {
-  font-size: 1.05rem;
-  font-weight: 700;
+.job-group-jid {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
   color: var(--paper-0);
+  letter-spacing: -0.01em;
 }
 .job-group-customer {
   color: var(--paper-1);
-  font-size: 0.88rem;
-  margin-left: 8px;
+  font: var(--type-body-sm);
 }
 .job-group-time {
+  margin-left: auto;
   color: var(--paper-2);
-  font-size: 0.78rem;
-  font-style: italic;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
-.child-row {
-  display: flex;
+
+/* ====================================================================
+   ROW — full-row clickable anchor.
+   ==================================================================== */
+.row {
+  display: grid;
+  grid-template-columns: 14px 110px 1fr auto auto auto;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-top: 1px dashed var(--rule);
+  gap: 12px;
+  padding: 9px 8px 9px 12px;
+  border-radius: var(--radius-control);
+  margin: 2px -4px;
   border-left: 3px solid transparent;
-  margin-left: -10px;     /* compensate for left-border width so content stays aligned */
-  padding-left: 7px;      /* with the group header above */
+  text-decoration: none !important;
+  color: var(--paper-0) !important;
   transition: background-color 120ms ease, border-left-color 120ms ease;
+  position: relative;
 }
-.child-row:hover {
+.row:hover { background: var(--ink-2); }
+.row-selected {
   background: var(--ink-2);
-}
-/* Fresh: child updated within the last 30 seconds. The left accent border
-   + bg lift makes recent activity scannable at a glance — exactly what
-   the queue is for. */
-.child-row-fresh {
   border-left-color: var(--process-m);
+}
+/* Fresh: child updated within the last 30 seconds. The accent left
+   border + faint magenta tint marks recent activity at a glance —
+   without competing with the selected-row treatment which also uses
+   the magenta border. */
+.row-fresh {
+  border-left-color: var(--process-m-edge);
   background: var(--process-m-soft);
 }
-.child-row-fresh:hover {
+.row-fresh:hover {
   background: var(--process-m-soft);
 }
 
-/* State dot — small colored circle to the left of every row, redundant
-   visual encoding with the pill text. Drafting/validating phases get a
-   pulse here (instead of on the pill) so motion is contained to a single
-   small element rather than fading whole rows in/out. */
-.state-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  box-shadow: 0 0 0 3px transparent;
-}
-.dot-ready         { background: var(--ready-fg); }
-.dot-clarification { background: var(--await-fg); }
-.dot-human         { background: var(--human-fg); }
-.dot-escalated     { background: var(--human-fg); }
-.dot-done          { background: var(--done-fg); }
-.dot-other         { background: var(--done-fg); }
-.dot-drafting,
-.dot-validating {
-  background: var(--process-m);
-  box-shadow: 0 0 0 3px var(--process-m-soft);
-  animation: voomie-pulse 1.6s ease-in-out infinite;
-}
-
-.child-id {
+/* Row internals. The grid template above defines six slots:
+   [state-dot] [jid] [summary] [flag] [tag] [age]
+   The summary fills the flex column; everything else hugs its content. */
+.row-jid {
   font-family: var(--font-mono);
   font-size: 13px;
-  color: var(--paper-1);
   font-weight: 500;
-  min-width: 110px;
-}
-.child-summary {
   color: var(--paper-1);
-  font-size: 0.9rem;
-  flex: 1;
+}
+.row-selected .row-jid { color: var(--paper-0); }
+
+.row-summary {
+  color: var(--paper-0);
+  font: var(--type-body-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.child-age {
+.row-age {
   color: var(--paper-2);
-  font-size: 0.72rem;
-  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
-.child-age-fresh {
-  color: var(--process-m-fg);
-  font-weight: 600;
-}
+.row-fresh .row-age { color: var(--process-m-fg); font-weight: 600; }
+.row-selected .row-age { color: var(--process-m-fg); }
+
 .flag-badge {
   display: inline-block;
   background: var(--human-soft);
@@ -736,9 +760,80 @@ body, button, input, textarea, select,
   border: 1px solid var(--human-edge);
   border-radius: 999px;
   padding: 1px 8px;
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
 }
+
+/* ====================================================================
+   STATE DOT — distinct shapes per status (redundant encoding).
+   - Ready    : solid filled green circle
+   - Awaiting : open yellow ring (border, transparent fill)
+   - Human    : solid red dot, breathing animation
+   - Working  : solid magenta with glow + pulse animation
+   - Done     : small dim gray dot
+   ==================================================================== */
+.state-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+.dot-ready {
+  background: var(--ready-fg);
+  box-shadow: 0 0 0 2px var(--ready-soft);
+}
+.dot-clarification {
+  /* Open ring — fill stays transparent, the border IS the dot */
+  background: transparent;
+  border: 2px solid var(--await-fg);
+  box-shadow: 0 0 0 2px var(--await-soft);
+}
+.dot-human,
+.dot-escalated {
+  background: var(--human-fg);
+  box-shadow: 0 0 0 2px var(--human-soft);
+  animation: voomie-breathe 2.4s ease-in-out infinite;
+}
+.dot-done,
+.dot-other {
+  width: 8px;
+  height: 8px;
+  background: var(--done-fg);
+  opacity: 0.55;
+}
+.dot-drafting,
+.dot-validating {
+  background: var(--process-m);
+  box-shadow: 0 0 0 2px var(--process-m-soft), 0 0 8px 0 var(--process-m-glow);
+  animation: voomie-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes voomie-breathe {
+  0%, 100% { opacity: 1.0; }
+  50%      { opacity: 0.55; }
+}
+
+/* ====================================================================
+   STATUS TAG — inline label that pairs with the state dot.
+   ==================================================================== */
+.tag {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.tag-ready    { color: var(--ready-fg);     background: var(--ready-soft);     border: 1px solid var(--ready-edge); }
+.tag-awaiting { color: var(--await-fg);     background: var(--await-soft);     border: 1px solid var(--await-edge); }
+.tag-human    { color: var(--human-fg);     background: var(--human-soft);     border: 1px solid var(--human-edge); }
+.tag-working  { color: var(--process-m-fg); background: var(--process-m-soft); border: 1px solid var(--process-m-edge); }
+.tag-done     { color: var(--done-fg);      background: var(--done-soft);      border: 1px solid var(--done-edge); }
+.tag-other    { color: var(--paper-2);      background: var(--ink-2);          border: 1px solid var(--rule); }
 
 /* ====================================================================
    DETAIL PANE
