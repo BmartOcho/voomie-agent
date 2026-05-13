@@ -500,34 +500,78 @@ body, button, input, textarea, select,
 .dot-fail { background: var(--human-fg); box-shadow: 0 0 0 4px var(--human-soft); }
 
 /* ====================================================================
-   FILTER CHIP STRIP (snapshot + filter)
-   Targets the row of buttons immediately following the anchor div in
-   render_filter_chips(). Tighter padding, smaller font, monospaced
-   count separator — reads as a snapshot strip, not a row of buttons.
+   SNAPSHOT STRIP — stat tiles that double as filter chips.
+   Each chip is an <a href="?filter=X"> so a click is a real URL change
+   that Streamlit picks up via st.query_params; HTML markup means we
+   can stack a large count over an uppercase label, which st.button
+   can't do.
    ==================================================================== */
-.filter-chip-strip-anchor + [data-testid="stHorizontalBlock"] {
-  gap: 8px !important;
-  margin-bottom: 8px;
+.snap-strip {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  margin-bottom: var(--space-zone);
 }
-.filter-chip-strip-anchor + [data-testid="stHorizontalBlock"] [data-testid="stColumn"] {
-  padding: 0 !important;
-}
-.filter-chip-strip-anchor + [data-testid="stHorizontalBlock"] .stButton button {
-  padding: 8px 10px !important;
-  font-size: 0.78rem !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.02em;
-  border-radius: 8px !important;
-  min-height: 0 !important;
-  line-height: 1.2 !important;
-  text-align: left !important;
-  justify-content: flex-start !important;
-}
-.filter-chip-strip-anchor + [data-testid="stHorizontalBlock"] .stButton button[kind="secondary"] {
+.snap-chip {
+  display: block;
   background: var(--ink-1);
+  border-radius: var(--radius-card);
+  padding: 16px 18px 14px;
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  text-decoration: none !important;
+  color: var(--paper-0) !important;
+  transition: transform 140ms ease, background-color 140ms ease;
 }
-.filter-chip-strip-anchor + [data-testid="stHorizontalBlock"] .stButton button[kind="secondary"]:hover {
+.snap-chip:hover {
+  transform: translateY(-1px);
   background: var(--ink-2);
+}
+.snap-chip.active {
+  box-shadow: var(--shadow-card-selected);
+  background: linear-gradient(180deg, var(--ink-1) 0%, rgba(216, 32, 140, 0.05) 100%);
+}
+.snap-count {
+  font: var(--type-display);
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--paper-0);
+  margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.snap-chip.active .snap-count { color: var(--process-m-fg); }
+.snap-label {
+  font: var(--type-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--paper-2);
+}
+.snap-chip.active .snap-label { color: var(--process-m-fg); }
+
+/* ====================================================================
+   INTAKE CARD
+   ==================================================================== */
+.intake-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.intake-title {
+  font: var(--type-subhead);
+  margin: 0;
+  color: var(--paper-0);
+  letter-spacing: -0.01em;
+}
+.intake-aux {
+  font: var(--type-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--paper-2);
 }
 
 /* ====================================================================

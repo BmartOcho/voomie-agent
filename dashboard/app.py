@@ -33,6 +33,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 import pymongo
 import streamlit as st
@@ -469,7 +470,13 @@ def render_header(connection_ok: bool, connection_err: str | None) -> None:
 
 def render_paste_in_pane() -> None:
     with st.container(border=True):
-        st.markdown("### 📨 New Customer Message")
+        st.markdown(
+            "<div class='intake-head'>"
+            "<h2 class='intake-title'>New intake</h2>"
+            "<span class='intake-aux'>Paste-in · or via Gmail / web-to-print / MIS</span>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
 
         # Bump the form key on submit so widgets reset cleanly.
         form_nonce = st.session_state.setdefault("paste_form_nonce", 0)
@@ -478,13 +485,13 @@ def render_paste_in_pane() -> None:
             col_a, col_b = st.columns([1, 2])
             with col_a:
                 customer = st.text_input(
-                    "Customer email or name",
+                    "Customer",
                     placeholder="chris@blastmailco.com",
                     key=f"customer_{form_nonce}",
                 )
             with col_b:
                 message = st.text_area(
-                    "Message body",
+                    "Message",
                     placeholder="Paste customer email or chat message here…",
                     height=120,
                     key=f"message_{form_nonce}",
@@ -496,13 +503,10 @@ def render_paste_in_pane() -> None:
                 key=f"uploads_{form_nonce}",
             )
             submit = st.form_submit_button(
-                "🚀 Process with Voomie", type="primary", use_container_width=False,
+                "Process with Voomie  →",
+                type="primary",
+                use_container_width=False,
             )
-
-        st.caption(
-            "Voomie can also be triggered from email, web-to-print portals, or "
-            "our MIS — this is the manual paste-in for the demo."
-        )
 
         if submit:
             if not customer.strip() or not message.strip():
@@ -534,39 +538,40 @@ def render_paste_in_pane() -> None:
 def render_filter_chips(jobs: list[dict[str, Any]]) -> str:
     """Render the snapshot strip / filter chip row.
 
-    Returns the currently active bucket name. Each chip's label embeds
-    the live count, so the strip doubles as a one-glance "what's in
-    the queue right now" summary — the BRIX/snapshot affordance — and
-    as the filter control. Replaces the previous selectbox.
+    Each chip is an <a href="?filter=X"> stat tile rather than an
+    st.button — anchor markup means we can stack a 28px count over an
+    uppercase label inside one clickable surface, which st.button
+    can't do. Click → URL change → Streamlit rerun reads
+    st.query_params and re-renders with the new active filter.
+
+    Returns the currently active bucket name.
     """
     counts = _bucket_counts(jobs)
-    current = st.session_state.setdefault("queue_filter", "All")
     chip_names = ["All", *PHASE_BUCKET_ORDER]
 
-    # Marker div so chip-strip-specific CSS can target this row of
-    # buttons without bleeding into other Streamlit buttons elsewhere.
-    st.markdown("<div class='filter-chip-strip-anchor'></div>", unsafe_allow_html=True)
+    # URL is the source of truth for the filter. Fall back to "All"
+    # for missing / unknown values so a stale link doesn't render an
+    # empty queue.
+    current = st.query_params.get("filter", "All")
+    if current not in chip_names:
+        current = "All"
+    st.session_state["queue_filter"] = current
 
-    cols = st.columns(len(chip_names))
-    for col, name in zip(cols, chip_names):
+    parts = ["<div class='snap-strip'>"]
+    for name in chip_names:
         n = counts.get(name, 0)
-        is_active = (name == current)
-        label = f"{name}  ·  {n}"
-        # Slugify the widget key — Streamlit accepts spaces in keys
-        # but normalizing keeps keys safe if a downstream consumer ever
-        # uses them as CSS selectors or dict access patterns.
-        slug = name.lower().replace(" ", "_")
-        with col:
-            if st.button(
-                label,
-                key=f"chip_{slug}",
-                type="primary" if is_active else "secondary",
-                use_container_width=True,
-            ):
-                st.session_state["queue_filter"] = name
-                st.rerun()
+        active_cls = " active" if name == current else ""
+        href = "?" + urlencode({"filter": name})
+        parts.append(
+            f"<a href='{href}' target='_self' class='snap-chip{active_cls}'>"
+            f"<div class='snap-count'>{n}</div>"
+            f"<div class='snap-label'>{_escape(name)}</div>"
+            "</a>"
+        )
+    parts.append("</div>")
+    st.markdown("".join(parts), unsafe_allow_html=True)
 
-    return st.session_state["queue_filter"]
+    return current
 
 
 def render_queue_pane(jobs: list[dict[str, Any]]) -> None:
