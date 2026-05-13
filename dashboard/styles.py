@@ -205,6 +205,13 @@ _TOKENS = """
   --type-caption:    500 11px/1.40  var(--font-body);       /* uppercase labels */
   --tracking-caps:   0.08em;
 
+  /* Vertical rhythm — generous between zones, tight within. */
+  --space-zone:      28px;   /* between major zones (snapshot ↔ intake ↔ queue) */
+  --space-section:   16px;   /* between section heading and its content */
+  --space-card:      12px;   /* between rows/items inside a card */
+  --radius-card:     12px;   /* card corner radius */
+  --radius-control:   8px;   /* button / input corner radius */
+
   /* ============================================================
      COLOR — CMYK-grounded. Every token below cites its plate mix.
      WCAG AA confirmed for every text consumer on ink-0 and ink-1.
@@ -366,13 +373,23 @@ body, button, input, textarea, select,
 [data-testid="stSidebar"] .stMarkdown small,
 [data-testid="stSidebar"] .stCaption { color: var(--paper-2); }
 
-.block-container { padding-top: 1.2rem; padding-bottom: 2.2rem; }
+.block-container {
+  padding-top: 24px;
+  padding-bottom: 80px;
+  padding-left: 36px;
+  padding-right: 36px;
+  max-width: 1480px;
+}
 
-/* Streamlit's bordered container — use as cards. */
+/* Streamlit's bordered container — cards. Inner-highlight + hairline
+   border + faint drop. No heavy strokes; the depth comes from the
+   stacked shadow recipe, not from a thick border. */
 [data-testid="stVerticalBlockBorderWrapper"] {
   background: var(--ink-1);
-  border: 1px solid var(--rule) !important;
-  border-radius: 10px;
+  border: none !important;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 18px 20px !important;
 }
 
 /* Form inputs (paste-in pane) */
@@ -426,6 +443,28 @@ body, button, input, textarea, select,
 /* ====================================================================
    HEADER
    ==================================================================== */
+/* ----- Page header -------------------------------------------------- */
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: var(--space-zone);
+  padding-bottom: 0;
+}
+.page-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.page-header-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, var(--process-m) 0%, #8B1057 100%);
+  box-shadow: 0 0 16px 0 var(--process-m-glow);
+  flex-shrink: 0;
+}
 .voomie-wordmark {
   font: var(--type-display);
   letter-spacing: -0.02em;
@@ -434,17 +473,19 @@ body, button, input, textarea, select,
 }
 .voomie-subtitle {
   font: var(--type-body-sm);
-  color: var(--paper-1);
-  margin: 0;
+  color: var(--paper-2);
+  margin: 2px 0 0;
 }
 .connection-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 7px;
+  padding: 5px 11px;
   border-radius: 999px;
-  font-size: 0.78rem;
+  font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   background: var(--pill-bg);
   color: var(--pill-fg);
   border: 1px solid var(--rule);

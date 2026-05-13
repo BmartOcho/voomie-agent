@@ -434,29 +434,32 @@ def save_uploaded_pdfs(uploaded_files: list[Any], run_id: str) -> list[Path]:
 
 
 def render_header(connection_ok: bool, connection_err: str | None) -> None:
-    left, right = st.columns([5, 1])
-    with left:
-        st.markdown(
-            "<p class='voomie-wordmark'>Voomie</p>"
-            "<p class='voomie-subtitle'>AI prepress assistant for Voom Group</p>",
-            unsafe_allow_html=True,
+    """Page header: brand mark + wordmark + tagline (left), live pill (right)."""
+    if connection_ok:
+        conn_html = (
+            "<span class='connection-pill' title='MongoDB ping ok'>"
+            "<span class='connection-dot dot-ok'></span>MongoDB live</span>"
         )
-    with right:
-        if connection_ok:
-            st.markdown(
-                "<div style='text-align:right;margin-top:14px;'>"
-                "<span class='connection-pill' title='MongoDB ping ok'>"
-                "<span class='connection-dot dot-ok'></span>MongoDB</span></div>",
-                unsafe_allow_html=True,
-            )
-        else:
-            tooltip = (connection_err or "no connection").replace('"', "'")
-            st.markdown(
-                f"<div style='text-align:right;margin-top:14px;'>"
-                f"<span class='connection-pill' title=\"{tooltip}\">"
-                f"<span class='connection-dot dot-fail'></span>MongoDB</span></div>",
-                unsafe_allow_html=True,
-            )
+    else:
+        tooltip = (connection_err or "no connection").replace('"', "'")
+        conn_html = (
+            f"<span class='connection-pill' title=\"{tooltip}\">"
+            f"<span class='connection-dot dot-fail'></span>MongoDB offline</span>"
+        )
+
+    st.markdown(
+        "<div class='page-header'>"
+        "<div class='page-header-left'>"
+        "<div class='page-header-mark'></div>"
+        "<div>"
+        "<h1 class='voomie-wordmark'>voomie</h1>"
+        "<p class='voomie-subtitle'>AI prepress assistant · Voom Group, Dallas TX</p>"
+        "</div>"
+        "</div>"
+        f"<div class='page-header-right'>{conn_html}</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1006,8 +1009,6 @@ def main() -> None:
 
     jobs = fetch_all_jobs()
     render_queue_pane(jobs)
-
-    st.markdown("<hr class='section-divider'/>", unsafe_allow_html=True)
     render_detail_pane(jobs)
 
 
