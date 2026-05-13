@@ -710,14 +710,14 @@ def _render_detail_header(
 ) -> None:
     """Compact one-glance header at the top of the detail pane.
 
-    Single line: job id + phase pill + age. Second line: customer +
-    relationship + email/phone. Optional third: shop relationship notes
-    as a highlighted block.
+    Line 1: jid + state tag + (rush flag if present) + age right-aligned.
+    Line 2: customer name + relationship badge + email/phone/history.
+    Line 3 (optional): shop relationship notes as a highlighted block.
     """
     jid = job.get("_id", "—")
     phase = job.get("phase") or "unknown"
     rush_label = (
-        "<span class='detail-rush-flag'>🚨 RUSH</span>" if job.get("rush") else ""
+        "<span class='detail-rush-flag'>RUSH</span>" if job.get("rush") else ""
     )
     updated = _to_dt(job.get("updated_at")) or _to_dt(job.get("created_at"))
     age_label = _humanize_age(updated)
@@ -735,19 +735,25 @@ def _render_detail_header(
 
     jobs_suffix = "job" if n_customer_jobs == 1 else "jobs"
 
+    # Close-button anchor that clears ?selected — gives the user a way
+    # back to the full-width queue without needing the browser's back
+    # button. preserve filter via _query_link's existing-param merge.
+    close_href = _query_link(selected=None)
+
     st.markdown(
         "<div class='detail-header'>"
         "<div class='detail-header-row'>"
-        f"<span class='detail-jid'>{jid}</span>"
-        f"{phase_pill(phase)}"
+        f"<span class='detail-jid'>{_escape(jid)}</span>"
+        f"{state_tag(phase)}"
         f"{rush_label}"
         f"<span class='detail-header-age'>updated {age_label}</span>"
+        f"<a href='{close_href}' target='_self' class='detail-close' title='Close detail'>×</a>"
         "</div>"
         "<div class='detail-header-row'>"
-        f"<span class='detail-customer-name-inline'>{cust_name}</span>"
+        f"<span class='detail-customer-name-inline'>{_escape(cust_name)}</span>"
         f"{customer_badge(rel_kind)}"
         f"<span class='detail-customer-meta-inline'>"
-        f"📧 {cust_email}  ·  📞 {cust_phone}  ·  "
+        f"{_escape(cust_email)}  ·  {_escape(cust_phone)}  ·  "
         f"{n_customer_jobs} {jobs_suffix} in history"
         "</span>"
         "</div>"
@@ -759,7 +765,7 @@ def _render_detail_header(
         notes = (customer.get("shop_relationship_notes") or "").strip()
         if notes:
             st.markdown(
-                f"<div class='detail-notes'>📝 {notes}</div>",
+                f"<div class='detail-notes'>{_escape(notes)}</div>",
                 unsafe_allow_html=True,
             )
 
@@ -834,23 +840,26 @@ def _render_specs_grid(job: dict[str, Any]) -> None:
 
 
 def render_detail_pane(jobs: list[dict[str, Any]]) -> None:
-    selected = st.session_state.get("selected_job_id")
-    st.markdown("### 🔎 Job Detail")
+    """Render the detail panel for the currently-selected job.
+
+    Caller is responsible for only invoking this when a selection
+    exists — main() gates it on st.query_params.get("selected") so
+    the full-width queue view skips this entirely.
+    """
+    selected = st.query_params.get("selected")
     if not selected:
-        st.markdown(
-            "<div class='empty-state'>"
-            "Select a job from the queue above to inspect its conversation, "
-            "declaration, and any pending draft replies."
-            "</div>",
-            unsafe_allow_html=True,
-        )
+        # Belt-and-suspenders — main() should have skipped us, but if
+        # we get called with no selection (e.g., a future caller that
+        # forgets the gate), render a quiet inline hint rather than the
+        # old verbose empty state.
         return
 
     job = next((j for j in jobs if j.get("_id") == selected), None)
     if job is None:
         st.warning(f"Job {selected} no longer exists.")
-        st.session_state["selected_job_id"] = None
         return
+
+    st.markdown("<div class='detail-panel'>", unsafe_allow_html=True)
 
     customer = fetch_customer(job.get("customer_id"))
     n_customer_jobs = count_customer_jobs(job.get("customer_id"))
@@ -925,9 +934,11 @@ def render_detail_pane(jobs: list[dict[str, Any]]) -> None:
             )
 
     # ----- 7. Raw source (expert / debug) -------------------------------
-    st.markdown("<hr class='section-divider'/>", unsafe_allow_html=True)
-    _render_code_block("📜 shoptalk declaration", job.get("declaration_source") or "")
-    _render_code_block("🧮 action plan", job.get("action_plan") or "")
+    _render_code_block("shoptalk declaration", job.get("declaration_source") or "")
+    _render_code_block("action plan", job.get("action_plan") or "")
+
+    # Close .detail-panel wrapper.
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _escape(s: str) -> str:
@@ -1028,8 +1039,21 @@ def main() -> None:
     render_paste_in_pane()
 
     jobs = fetch_all_jobs()
-    render_queue_pane(jobs)
-    render_detail_pane(jobs)
+
+    # Split-pane only when a job is selected; otherwise the queue
+    # spans the full content width. 1.7 / 1 ratio gives the queue
+    # ~63% of the area when both are showing — enough room for the
+    # full row template (state dot, jid, summary, tag, age) without
+    # truncation, while the detail panel gets ~37% for its own card.
+    selected = st.query_params.get("selected")
+    if selected:
+        col_queue, col_detail = st.columns([1.7, 1], gap="medium")
+        with col_queue:
+            render_queue_pane(jobs)
+        with col_detail:
+            render_detail_pane(jobs)
+    else:
+        render_queue_pane(jobs)
 
 
 # `streamlit run dashboard/app.py` executes the module as __main__, so this

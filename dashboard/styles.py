@@ -597,6 +597,12 @@ h1.voomie-wordmark {
   text-transform: uppercase;
   letter-spacing: var(--tracking-caps);
   color: var(--paper-2);
+  /* Single-line by default at typical widths; if the chip is genuinely
+     too narrow (e.g. 6+ chips on a sub-laptop viewport), let it wrap to
+     2 lines rather than overflow the tile. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .snap-chip.active .snap-label { color: var(--process-m-fg); }
 
@@ -761,6 +767,11 @@ h1.voomie-wordmark {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* min-width: 0 is required to let an ellipsizable element shrink
+     inside a CSS Grid track — grid items default to min-width:auto
+     which respects intrinsic content width and prevents truncation
+     when a sibling (the status tag) wants its full width. */
+  min-width: 0;
 }
 .row-age {
   color: var(--paper-2);
@@ -854,7 +865,38 @@ h1.voomie-wordmark {
 .tag-other    { color: var(--paper-2);      background: var(--ink-2);          border: 1px solid var(--rule); }
 
 /* ====================================================================
-   DETAIL PANE
+   DETAIL PANEL — split-pane right side.
+   The container has its own card depth (matching every other card on
+   the page) PLUS a 3px magenta left border so the visual link to the
+   selected row's left bar reads at a glance. Sticky top so the panel
+   stays in view as the queue scrolls.
+   ==================================================================== */
+.detail-panel {
+  background: var(--ink-1);
+  border-radius: var(--radius-card);
+  border-left: 3px solid var(--process-m);
+  padding: 22px 24px 24px;
+  box-shadow: var(--shadow-card);
+  position: sticky;
+  top: 20px;
+}
+.detail-close {
+  margin-left: 6px;
+  color: var(--paper-2);
+  text-decoration: none !important;
+  font-size: 22px;
+  line-height: 1;
+  padding: 0 6px;
+  border-radius: 6px;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+.detail-close:hover {
+  color: var(--paper-0);
+  background: var(--ink-2);
+}
+
+/* ====================================================================
+   DETAIL — inner blocks
    ==================================================================== */
 .detail-block-label {
   font: var(--type-caption);
@@ -893,24 +935,25 @@ h1.voomie-wordmark {
   border: 1px solid var(--human-edge);
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: 0.72rem;
+  font: var(--type-caption);
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
 }
 .detail-header-age {
   color: var(--paper-2);
-  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  font-size: 11px;
   margin-left: auto;
   font-variant-numeric: tabular-nums;
 }
 .detail-customer-name-inline {
-  font-size: 0.98rem;
-  font-weight: 600;
+  font: var(--type-subhead);
   color: var(--paper-0);
 }
 .detail-customer-meta-inline {
-  color: var(--paper-1);
-  font-size: 0.85rem;
+  color: var(--paper-2);
+  font: var(--type-body-sm);
 }
 
 /* Legacy classes — preserved in case anything still renders them.
