@@ -225,12 +225,24 @@ def _to_dt(value: Any) -> datetime | None:
     return None
 
 
+def _now_utc_naive() -> datetime:
+    """Return current UTC time as a naive datetime.
+
+    datetime.utcnow() was deprecated in Python 3.12; the floods of
+    DeprecationWarnings on every Streamlit rerun were filling the
+    console. This wrapper does the timezone-aware replacement
+    (datetime.now(timezone.utc)) and strips tzinfo to preserve the
+    existing naive-UTC contract that _to_dt / _humanize_age expect.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 def _humanize_age(when: datetime | None) -> str:
     if when is None:
         return "—"
     if when.tzinfo is not None:
         when = when.astimezone(timezone.utc).replace(tzinfo=None)
-    delta = datetime.utcnow() - when
+    delta = _now_utc_naive() - when
     secs = int(delta.total_seconds())
     if secs < 0:
         return "just now"
@@ -249,7 +261,7 @@ def _age_seconds(when: datetime | None) -> int | None:
         return None
     if when.tzinfo is not None:
         when = when.astimezone(timezone.utc).replace(tzinfo=None)
-    return int((datetime.utcnow() - when).total_seconds())
+    return int((_now_utc_naive() - when).total_seconds())
 
 
 _SPEC_KEYS = (
@@ -378,7 +390,7 @@ def spawn_agent_run(
     dashboard's auto-refresh picks up MongoDB writes as the agent streams
     phase updates.
     """
-    run_id = datetime.utcnow().strftime("%Y%m%dT%H%M%S") + "-" + uuid.uuid4().hex[:6]
+    run_id = _now_utc_naive().strftime("%Y%m%dT%H%M%S") + "-" + uuid.uuid4().hex[:6]
     log_dir = RUN_LOG_ROOT / run_id
     log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -542,10 +554,14 @@ def render_filter_chips(jobs: list[dict[str, Any]]) -> str:
         n = counts.get(name, 0)
         is_active = (name == current)
         label = f"{name}  ·  {n}"
+        # Slugify the widget key — Streamlit accepts spaces in keys
+        # but normalizing keeps keys safe if a downstream consumer ever
+        # uses them as CSS selectors or dict access patterns.
+        slug = name.lower().replace(" ", "_")
         with col:
             if st.button(
                 label,
-                key=f"chip_{name}",
+                key=f"chip_{slug}",
                 type="primary" if is_active else "secondary",
                 use_container_width=True,
             ):
@@ -932,29 +948,56 @@ def _render_draft_reply(job_id: str, message_index: int, draft: dict[str, Any]) 
 # ---------------------------------------------------------------------------
 
 
+def _on_theme_toggle_change() -> None:
+    """Mirror the toggle widget's state into st.session_state['theme'].
+
+    Streamlit fires on_change callbacks BEFORE the rerun-from-widget-
+    change kicks off the next script run. So by the time the script
+    re-executes from the top, session_state['theme'] is already the
+    new value and the top-of-module style injection picks it up on
+    the same rerun the user clicked. No flicker, no second rerun.
+    """
+    st.session_state["theme"] = (
+        "light" if st.session_state.get("theme_toggle", False) else "dark"
+    )
+
+
 def render_sidebar() -> bool:
     """Returns True if auto-refresh is enabled.
 
-    Side effect: the theme toggle updates st.session_state["theme"].
-    The new value won't be applied until the next rerun (Streamlit
-    injects styles at the top of the module, before this function
-    runs). st.toggle's on-change implicitly triggers a rerun, so a
-    user click reads as "click, page reruns, top-of-module reads the
-    new theme, the toggle re-renders in the new state."
+    Theme toggle uses the on_change-callback pattern. The previous
+    imperative version (read widget value -> compare -> st.rerun())
+    deadlocked: passing both `value=` and `key=` to st.toggle in
+    Streamlit 1.37 makes the value param re-sync the widget every
+    rerun, and the explicit st.rerun() then re-applied the user's
+    intent — together with st_autorefresh ticking every 1s, the toggle
+    flipped continuously. The callback pattern owns the side effect
+    cleanly: Streamlit auto-reruns on widget change, the callback
+    fires first and updates session_state['theme'], no explicit rerun
+    or value-recomputation needed.
     """
     with st.sidebar:
         st.markdown("## ⚙️ Controls")
-        light_on = st.toggle(
+
+        # Initialize linked state once. After this, the toggle widget
+        # owns 'theme_toggle' and the callback mirrors it into 'theme'.
+        if "theme" not in st.session_state:
+            st.session_state["theme"] = "dark"
+        if "theme_toggle" not in st.session_state:
+            st.session_state["theme_toggle"] = (st.session_state["theme"] == "light")
+
+        st.toggle(
             "☀ Light mode",
-            value=(st.session_state.get("theme", "dark") == "light"),
             key="theme_toggle",
+            on_change=_on_theme_toggle_change,
             help="Default is dark. Toggle persists for this session only.",
         )
-        new_theme = "light" if light_on else "dark"
-        if st.session_state.get("theme") != new_theme:
-            st.session_state["theme"] = new_theme
-            st.rerun()
-        auto_refresh = st.toggle("Auto-refresh (1s)", value=True)
+
+        auto_refresh = st.toggle(
+            "Auto-refresh (1s)",
+            value=True,
+            key="autorefresh_toggle",
+        )
         st.divider()
         st.markdown("### Phase legend")
         for phase in (
