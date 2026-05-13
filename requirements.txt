@@ -4,7 +4,7 @@
 # --- Google Cloud Vertex AI / Gemini (agent reasoning loop) ---
 google-cloud-aiplatform>=1.60.0
 
-# --- MCP server + client (stdio JSON-RPC bridge to the Racket parser) ---
+# --- MCP server + client (stdio JSON-RPC bridge to shoptalk's spec parser) ---
 mcp>=1.0.0
 
 # --- MongoDB (customer/job/conversation/flag persistence) ---

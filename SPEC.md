@@ -52,7 +52,7 @@ All tools exposed through the MCP server, actually invoked over stdio. No tool i
 - `inspect_pdf(path)` — pikepdf-backed; returns trim size, pages, color space, fonts, bleed presence
 - `query_stock_registry(criteria, limit=3)` — wraps shoptalk's stock registry; fuzzy matching internal to the tool; returns ranked candidates
 - `query_press_registry(criteria, limit=3)` — same for presses
-- `parse_shoptalk(source)` — invokes the Racket parser via subprocess; returns action plan s-expression on success or structured errors on failure
+- `parse_shoptalk(source)` — invokes shoptalk's spec parser via subprocess; returns the structured action plan on success or structured errors on failure
 - `render_preview(action_plan)` — invokes the Python verifier; returns preview PDF (used in the booklet closer)
 - `update_job_status(job_id, phase)` — streams human-readable phase updates to the dashboard
 - `append_conversation_turn(job_id, turn)` — incremental conversation log persistence; survives mid-flow crashes
@@ -67,8 +67,8 @@ Five collections.
 
 - **customers** — `{_id, name, email, phone, shop_relationship_notes, first_seen, last_seen}`
 - **jobs** — `{_id: J-number, parent_id (for multi-job children), customer_id, status, phase, declaration_source, action_plan, attachments_metadata, out_of_scope_notes, due_date, rush, created_at, updated_at}`
-  - `declaration_source` is the shoptalk source string Voomie produced (`#lang shoptalk\npostcard\n  ...`)
-  - `action_plan` is the s-expression the parser emits, stored as text for inspection by the verifier
+  - `declaration_source` is the shoptalk source string Voomie produced
+  - `action_plan` is the structured plan the parser emits, stored as text for inspection by the verifier
 - **conversations** — `{_id, job_id, messages: [{role, content, timestamp, attachments, status}]}` — full transcript including Voomie's reasoning and draft replies
 - **flags** — `{_id, job_id, type, reason, context, resolved}`
 - **seed_history** — your real customer job history, anonymized, used for few-shot prompting and the "you've ordered this before" demo beat
@@ -98,7 +98,7 @@ The Frank/mailing message and Message 4's attachment-driven case are documented 
 - Voomie handles all four real customer messages end-to-end, with escalation behavior counting as success when escalation is the correct response
 - MCP server actually invoked over stdio — no decoration
 - MongoDB stores complete job records, conversations, flags, and seeded history
-- shoptalk parser invoked via subprocess for every declaration; structured errors surfaced
+- shoptalk's spec parser invoked via subprocess for every declaration; structured errors surfaced
 - pikepdf MCP tool inspects real PDF attachments
 - Verifier produces a real preview PDF for the booklet closer
 - 5 customers seeded in MongoDB (real anonymized data); demo features 1 returning customer for the "ordered before" beat; dashboard shows multiple jobs for texture
@@ -141,7 +141,7 @@ The Frank/mailing message and Message 4's attachment-driven case are documented 
      │     │     │     │
      ▼     ▼     ▼     ▼
  MongoDB pikepdf shoptalk verifier
- (jobs,   (PDF   (Racket  (preview
+ (jobs,   (PDF   (spec    (preview
  history, inspect) parser) PDF)
  logs)
 ```

@@ -29,7 +29,7 @@ Voomie is a natural-language front door to **shoptalk** that turns messy custome
      │     │     │     │
      ▼     ▼     ▼     ▼
  MongoDB pikepdf shoptalk verifier
- (jobs,   (PDF   (Racket  (preview
+ (jobs,   (PDF   (spec    (preview
  history, inspect) parser) PDF)
  logs)
 ```
@@ -38,7 +38,7 @@ CSR dashboard reads from MongoDB, writes nothing back except CSR-approved sends 
 
 ## Dependencies
 
-Voomie depends on [**shoptalk**](https://github.com/<your-org>/shoptalk) being available locally. The Racket parser is invoked via subprocess for declaration validation, and the Python verifier renders preview PDFs from action plans. Path resolution is handled at runtime — see [SPEC.md](./SPEC.md) §MCP tool surface for the integration boundary.
+Voomie depends on **shoptalk** being available locally. shoptalk's spec parser is invoked via subprocess for declaration validation, and shoptalk's Python verifier renders preview PDFs from action plans. Path resolution is handled at runtime via the `SHOPTALK_REPO_PATH` environment variable — see [SPEC.md](./SPEC.md) §MCP tool surface for the integration boundary.
 
 ## License
 
