@@ -181,7 +181,31 @@ def turn_status_badge(status: str) -> str:
 
 _TOKENS_DARK = """
 :root {
-  /* Surface */
+  /* ----- TYPOGRAPHY ---------------------------------------------------
+     Geist + Geist Mono via Google Fonts. Geist is Vercel's neutral sans
+     — geometric without being cold, with strong weight contrast (400
+     through 800) for hierarchy. Geist Mono pairs with it at consistent
+     x-height, used for job IDs, code blocks, and tabular columns where
+     character width must stay even. System fallbacks ensure the page
+     stays usable if the CDN fails. */
+  --font-display: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-body:    'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono:    'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Type scale — six steps with deliberate weight contrast.
+     Display heads and body cohabit in the same family; the perceived
+     hierarchy comes from weight (700/600/500/400) + size + tracking,
+     not from a serif/sans contrast that would feel literary. */
+  --type-display:    700 26px/1.15  var(--font-display);    /* page title */
+  --type-section:    600 20px/1.25  var(--font-display);    /* section heading */
+  --type-subhead:    600 15px/1.30  var(--font-display);    /* card / block heading */
+  --type-body:       400 14px/1.50  var(--font-body);       /* body */
+  --type-body-sm:    400 13px/1.50  var(--font-body);       /* compact body */
+  --type-caption:    500 11px/1.40  var(--font-body);       /* uppercase labels */
+  --tracking-caps:   0.08em;                                /* applied wherever caption text-transforms uppercase */
+
+  /* ----- SURFACE / FOREGROUND / BORDER tokens still here for now;
+     the CMYK-grounded palette lands in the next commit. ----- */
   --bg-0:        #0A0A0A;
   --bg-1:        #111111;
   --bg-2:        #1A1A1A;
@@ -241,6 +265,19 @@ _TOKENS_DARK = """
 
 _TOKENS_LIGHT = """
 :root {
+  /* Typography mirrored from _TOKENS_DARK so var() lookups resolve
+     during the brief overlap before the light theme is removed. */
+  --font-display: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-body:    'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono:    'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --type-display:    700 26px/1.15  var(--font-display);
+  --type-section:    600 20px/1.25  var(--font-display);
+  --type-subhead:    600 15px/1.30  var(--font-display);
+  --type-body:       400 14px/1.50  var(--font-body);
+  --type-body-sm:    400 13px/1.50  var(--font-body);
+  --type-caption:    500 11px/1.40  var(--font-body);
+  --tracking-caps:   0.08em;
+
   --bg-0:        #FAFAFA;
   --bg-1:        #FFFFFF;
   --bg-2:        #F4F4F5;
@@ -308,13 +345,60 @@ def theme_styles(theme: str) -> str:
 _STYLES_BODY = """
 
 /* ====================================================================
+   WEB FONTS — Geist + Geist Mono from Google Fonts.
+   @import inside <style> blocks load before the rest of CSS applies,
+   so the first paint already uses the brand type (no FOUT visible on
+   subsequent autorefreshes since the browser caches the woff2 after
+   the first fetch).
+   ==================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap');
+
+/* ====================================================================
    STREAMLIT CHROME — paint the app shell with our tokens.
    ==================================================================== */
 [data-testid="stAppViewContainer"],
 [data-testid="stApp"] {
   background: var(--bg-0);
   color: var(--fg-0);
+  font-family: var(--font-body);
+  font-feature-settings: "ss01" on, "cv11" on;
+  -webkit-font-smoothing: antialiased;
 }
+
+/* Override Streamlit's stock Source-Sans/serif fallbacks across every
+   widget surface so the typography is consistent everywhere — buttons,
+   inputs, labels, markdown, toasts. */
+body, button, input, textarea, select,
+[data-testid="stMarkdownContainer"],
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] h1,
+[data-testid="stMarkdownContainer"] h2,
+[data-testid="stMarkdownContainer"] h3,
+[data-testid="stMarkdownContainer"] h4,
+[data-testid="stMarkdownContainer"] h5,
+[data-testid="stMarkdownContainer"] h6,
+[data-testid="stMarkdownContainer"] li,
+[data-testid="stMarkdownContainer"] label,
+.stTextInput label,
+.stTextArea label,
+.stFileUploader label,
+.stToggle label,
+.stCaption,
+.stToast,
+.stTooltipContent {
+  font-family: var(--font-body) !important;
+}
+
+/* H3 sits in the page hierarchy as "section heading" — apply our type
+   token instead of Streamlit's default. */
+[data-testid="stMarkdownContainer"] h3 {
+  font: var(--type-section);
+  letter-spacing: -0.01em;
+  color: var(--fg-0);
+  margin-top: 24px;
+  margin-bottom: 12px;
+}
+
 [data-testid="stHeader"] { background: transparent; }
 [data-testid="stSidebar"] {
   background: var(--bg-1);
@@ -385,15 +469,14 @@ _STYLES_BODY = """
    HEADER
    ==================================================================== */
 .voomie-wordmark {
-  font-size: 2.0rem;
-  font-weight: 800;
+  font: var(--type-display);
   letter-spacing: -0.02em;
   margin: 0;
   color: var(--fg-0);
 }
 .voomie-subtitle {
+  font: var(--type-body-sm);
   color: var(--fg-1);
-  font-size: 0.95rem;
   margin: 0;
 }
 .connection-pill {
@@ -579,10 +662,10 @@ _STYLES_BODY = """
 }
 
 .child-id {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.85rem;
-  color: var(--fg-0);
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--fg-1);
+  font-weight: 500;
   min-width: 110px;
 }
 .child-summary {
@@ -618,10 +701,10 @@ _STYLES_BODY = """
    DETAIL PANE
    ==================================================================== */
 .detail-block-label {
-  font-size: 0.72rem;
+  font: var(--type-caption);
   font-weight: 700;
   color: var(--fg-2);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
   margin-bottom: 4px;
 }
@@ -642,9 +725,9 @@ _STYLES_BODY = """
   flex-wrap: wrap;
 }
 .detail-jid {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 1.15rem;
-  font-weight: 700;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 600;
   color: var(--fg-0);
   letter-spacing: -0.01em;
 }
@@ -711,15 +794,16 @@ _STYLES_BODY = """
 }
 .spec-key {
   color: var(--fg-2);
-  font-size: 0.74rem;
-  letter-spacing: 0.05em;
+  font: var(--type-caption);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
   align-self: center;
 }
 .spec-val {
   color: var(--fg-0);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.86rem;
+  font-family: var(--font-mono);
+  font-size: 13px;
 }
 .empty-state-inline {
   color: var(--fg-2);
@@ -809,7 +893,7 @@ _STYLES_BODY = """
    Code stays dark in both themes — easier to read shoptalk source.
    ==================================================================== */
 .voomie-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   background: var(--bg-3);
   color: #E2E8F0;
   padding: 10px 14px;
