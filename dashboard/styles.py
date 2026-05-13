@@ -876,18 +876,26 @@ h1.voomie-wordmark {
 
 /* ====================================================================
    DETAIL PANEL — split-pane right side.
-   Uses :has() to find any stVerticalBlock that contains the marker
-   div .detail-panel-marker (placed inside st.container() by
-   render_detail_pane). :has() works in modern Chrome (105+) and
-   Firefox (121+), which covers every browser the dashboard targets.
 
-   Earlier attempts used adjacent-sibling on an anchor div placed
-   before the container; that failed because Streamlit nests each
-   st.markdown call in its own stMarkdown wrapper divs, so the
-   anchor and the container were never DOM siblings.
+   Selector strategy: target only the IMMEDIATE stVerticalBlock that
+   contains the marker (the one from st.container()), not every
+   ancestor stVerticalBlock up to the page root. The trick is to
+   match via the explicit direct-child path
+     stVerticalBlock > element-container > stMarkdown > stMarkdownContainer > .detail-panel-marker
+   — every outer stVerticalBlock has a stVerticalBlockBorderWrapper
+   or anonymous div between itself and an element-container, so the
+   direct-child chain fails for those.
+
+   The bare unscoped :has(.detail-panel-marker) version was applying
+   the panel styling (magenta border, sticky positioning, padding) to
+   every stVerticalBlock containing the marker — including the
+   page-level block — which produced a magenta border around the
+   whole main column and pushed content way down.
    ==================================================================== */
-[data-testid="stVerticalBlock"]:has(> .stMarkdown .detail-panel-marker),
-[data-testid="stVerticalBlock"]:has(.detail-panel-marker) {
+/* Target the column (right side of the split) directly when it
+   contains the marker. Streamlit's column uses data-testid="column",
+   not "stColumn" — different from the docs. */
+[data-testid="column"]:has(.detail-panel-marker) {
   background: var(--ink-1);
   border-radius: var(--radius-card);
   border-left: 3px solid var(--process-m);

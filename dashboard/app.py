@@ -124,6 +124,14 @@ def check_connection() -> tuple[bool, str | None]:
         return False, str(e)
 
 
+# Mongo read caches — TTL just under the 1s autorefresh interval so
+# every autorefresh tick reuses the previous result instead of
+# round-tripping to Atlas. Without these, the four detail-pane reads
+# (customer + count + flags + conversation) plus the per-group customer
+# fetches in the queue list pushed total render time over 1s, and the
+# next autorefresh tick cancelled the script mid-execution before the
+# detail panel could emit its content.
+@st.cache_data(ttl=0.9, show_spinner=False)
 def fetch_all_jobs() -> list[dict[str, Any]]:
     db = _db()
     if db is None:
@@ -134,6 +142,7 @@ def fetch_all_jobs() -> list[dict[str, Any]]:
         return []
 
 
+@st.cache_data(ttl=0.9, show_spinner=False)
 def fetch_customer(customer_id: Any) -> dict[str, Any] | None:
     db = _db()
     if db is None or customer_id is None:
@@ -150,6 +159,7 @@ def fetch_customer(customer_id: Any) -> dict[str, Any] | None:
         return None
 
 
+@st.cache_data(ttl=0.9, show_spinner=False)
 def count_customer_jobs(customer_id: Any) -> int:
     db = _db()
     if db is None or customer_id is None:
@@ -166,6 +176,7 @@ def count_customer_jobs(customer_id: Any) -> int:
         return 0
 
 
+@st.cache_data(ttl=0.9, show_spinner=False)
 def fetch_conversation(job_id: str) -> list[dict[str, Any]]:
     db = _db()
     if db is None:
@@ -179,6 +190,7 @@ def fetch_conversation(job_id: str) -> list[dict[str, Any]]:
         return []
 
 
+@st.cache_data(ttl=0.9, show_spinner=False)
 def fetch_flags(job_id: str) -> list[dict[str, Any]]:
     db = _db()
     if db is None:
@@ -858,95 +870,88 @@ def render_detail_pane(jobs: list[dict[str, Any]]) -> None:
         st.warning(f"Job {selected} no longer exists.")
         return
 
-    # The marker goes INSIDE the container. CSS uses :has() to
-    # find any stVerticalBlock that contains this marker and apply
-    # the panel styling to it. Earlier attempts used the adjacent-
-    # sibling combinator on an anchor div placed BEFORE the
-    # container, but Streamlit wraps each st.markdown call in its
-    # own intermediate stMarkdown/stMarkdownContainer divs, so the
-    # anchor and the container were never direct siblings and the
-    # selector never fired.
-    panel = st.container()
-    with panel:
+    # Render directly into the calling column — st.container() had
+    # bind issues that suppressed all calls past the first one. The
+    # column itself is the panel; CSS targets it via the marker.
+    st.markdown(
+        "<div class='detail-panel-marker'></div>",
+        unsafe_allow_html=True,
+    )
+    customer = fetch_customer(job.get("customer_id"))
+    n_customer_jobs = count_customer_jobs(job.get("customer_id"))
+    flags = fetch_flags(selected)
+    messages = fetch_conversation(selected)
+
+    # ----- 1. Compact header --------------------------------------------
+    _render_detail_header(job, customer, n_customer_jobs)
+
+    # ----- 2. Hero block: pending draft reply ---------------------------
+    # Lifted out of the conversation thread so the action is the first
+    # thing the CSR sees on a job that needs their input.
+    drafts = [
+        (i, m) for i, m in enumerate(messages)
+        if m.get("role") == "agent_to_customer" and m.get("status") == "draft"
+    ]
+    for idx, draft in drafts:
+        _render_draft_reply(selected, idx, draft)
+
+    # ----- 3. Specs + job meta grid -------------------------------------
+    _render_specs_grid(job)
+
+    # ----- 4. Flags ------------------------------------------------------
+    if flags:
         st.markdown(
-            "<div class='detail-panel-marker'></div>",
+            "<div class='detail-block-label' style='margin-top:14px;'>⚑ Flags</div>",
             unsafe_allow_html=True,
         )
-        customer = fetch_customer(job.get("customer_id"))
-        n_customer_jobs = count_customer_jobs(job.get("customer_id"))
-        flags = fetch_flags(selected)
-        messages = fetch_conversation(selected)
-
-        # ----- 1. Compact header ----------------------------------------
-        _render_detail_header(job, customer, n_customer_jobs)
-
-        # ----- 2. Hero block: pending draft reply ----------------------
-        # Lifted out of the conversation thread so the action is the
-        # first thing the CSR sees on a job that needs their input.
-        drafts = [
-            (i, m) for i, m in enumerate(messages)
-            if m.get("role") == "agent_to_customer" and m.get("status") == "draft"
-        ]
-        for idx, draft in drafts:
-            _render_draft_reply(selected, idx, draft)
-
-        # ----- 3. Specs + job meta grid --------------------------------
-        _render_specs_grid(job)
-
-        # ----- 4. Flags ------------------------------------------------
-        if flags:
+        for f in flags:
             st.markdown(
-                "<div class='detail-block-label' style='margin-top:14px;'>⚑ Flags</div>",
+                "<div class='flag-card'>"
+                f"<div class='flag-reason'>{_escape(f.get('reason', '—'))}</div>"
+                f"<div class='flag-context'>{_escape(f.get('context', ''))}</div>"
+                "</div>",
                 unsafe_allow_html=True,
             )
-            for f in flags:
-                st.markdown(
-                    "<div class='flag-card'>"
-                    f"<div class='flag-reason'>{_escape(f.get('reason', '—'))}</div>"
-                    f"<div class='flag-context'>{_escape(f.get('context', ''))}</div>"
-                    "</div>",
-                    unsafe_allow_html=True,
-                )
 
-        # ----- 5. Out-of-scope notes -----------------------------------
-        notes = job.get("out_of_scope_notes") or []
-        if notes:
-            st.markdown(
-                "<div class='detail-block-label' style='margin-top:14px;'>Out-of-scope notes</div>",
-                unsafe_allow_html=True,
-            )
-            for n in notes:
-                st.markdown(f"- {_escape(str(n))}")
-
-        # ----- 6. Conversation (chronological) -------------------------
+    # ----- 5. Out-of-scope notes ----------------------------------------
+    notes = job.get("out_of_scope_notes") or []
+    if notes:
         st.markdown(
-            "<div class='detail-block-label' style='margin-top:14px;'>Conversation</div>",
+            "<div class='detail-block-label' style='margin-top:14px;'>Out-of-scope notes</div>",
             unsafe_allow_html=True,
         )
-        if not messages:
+        for n in notes:
+            st.markdown(f"- {_escape(str(n))}")
+
+    # ----- 6. Conversation (chronological) ------------------------------
+    st.markdown(
+        "<div class='detail-block-label' style='margin-top:14px;'>Conversation</div>",
+        unsafe_allow_html=True,
+    )
+    if not messages:
+        st.markdown(
+            "<div class='empty-state'>No conversation turns yet.</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        for m in messages:
+            ts = _to_dt(m.get("timestamp"))
+            ts_label = ts.strftime("%H:%M:%S") if ts else "—"
             st.markdown(
-                "<div class='empty-state'>No conversation turns yet.</div>",
+                "<div class='turn'>"
+                "<div class='turn-header'>"
+                f"{role_badge(m.get('role', ''))}"
+                f"{turn_status_badge(m.get('status', ''))}"
+                f"<span class='turn-time'>{ts_label}</span>"
+                "</div>"
+                f"<div class='turn-content'>{_escape(m.get('content', ''))}</div>"
+                "</div>",
                 unsafe_allow_html=True,
             )
-        else:
-            for m in messages:
-                ts = _to_dt(m.get("timestamp"))
-                ts_label = ts.strftime("%H:%M:%S") if ts else "—"
-                st.markdown(
-                    "<div class='turn'>"
-                    "<div class='turn-header'>"
-                    f"{role_badge(m.get('role', ''))}"
-                    f"{turn_status_badge(m.get('status', ''))}"
-                    f"<span class='turn-time'>{ts_label}</span>"
-                    "</div>"
-                    f"<div class='turn-content'>{_escape(m.get('content', ''))}</div>"
-                    "</div>",
-                    unsafe_allow_html=True,
-                )
 
-        # ----- 7. Raw source (expert / debug) --------------------------
-        _render_code_block("shoptalk declaration", job.get("declaration_source") or "")
-        _render_code_block("action plan", job.get("action_plan") or "")
+    # ----- 7. Raw source (expert / debug) -------------------------------
+    _render_code_block("shoptalk declaration", job.get("declaration_source") or "")
+    _render_code_block("action plan", job.get("action_plan") or "")
 
 
 def _escape(s: str) -> str:
