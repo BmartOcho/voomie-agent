@@ -858,21 +858,20 @@ def render_detail_pane(jobs: list[dict[str, Any]]) -> None:
         st.warning(f"Job {selected} no longer exists.")
         return
 
-    # Anchor marker: the panel styling (.detail-panel-anchor + ...) hits
-    # the stVerticalBlock immediately following this empty div, so a
-    # single CSS rule wraps every subsequent Streamlit call in the
-    # function with the panel's bg + magenta left edge. A bare
-    # <div class='detail-panel'> rendered via st.markdown would NOT
-    # wrap subsequent calls — Streamlit closes its markdown container
-    # before the next call opens, so the wrapping div would self-close
-    # immediately. The marker-then-container pattern is the only
-    # reliable way inside Streamlit.
-    st.markdown(
-        "<div class='detail-panel-anchor'></div>",
-        unsafe_allow_html=True,
-    )
+    # The marker goes INSIDE the container. CSS uses :has() to
+    # find any stVerticalBlock that contains this marker and apply
+    # the panel styling to it. Earlier attempts used the adjacent-
+    # sibling combinator on an anchor div placed BEFORE the
+    # container, but Streamlit wraps each st.markdown call in its
+    # own intermediate stMarkdown/stMarkdownContainer divs, so the
+    # anchor and the container were never direct siblings and the
+    # selector never fired.
     panel = st.container()
     with panel:
+        st.markdown(
+            "<div class='detail-panel-marker'></div>",
+            unsafe_allow_html=True,
+        )
         customer = fetch_customer(job.get("customer_id"))
         n_customer_jobs = count_customer_jobs(job.get("customer_id"))
         flags = fetch_flags(selected)

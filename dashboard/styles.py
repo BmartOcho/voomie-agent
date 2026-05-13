@@ -876,14 +876,18 @@ h1.voomie-wordmark {
 
 /* ====================================================================
    DETAIL PANEL — split-pane right side.
-   Targeted via the anchor-sibling pattern: render_detail_pane drops
-   an empty <div class="detail-panel-anchor"> just before opening
-   st.container(), and this rule styles the IMMEDIATELY FOLLOWING
-   stVerticalBlock as the panel. A single bare <div class="detail-
-   panel"> via st.markdown wouldn't work — Streamlit closes its
-   markdown wrapper after each call, so the div would self-close.
+   Uses :has() to find any stVerticalBlock that contains the marker
+   div .detail-panel-marker (placed inside st.container() by
+   render_detail_pane). :has() works in modern Chrome (105+) and
+   Firefox (121+), which covers every browser the dashboard targets.
+
+   Earlier attempts used adjacent-sibling on an anchor div placed
+   before the container; that failed because Streamlit nests each
+   st.markdown call in its own stMarkdown wrapper divs, so the
+   anchor and the container were never DOM siblings.
    ==================================================================== */
-.detail-panel-anchor + [data-testid="stVerticalBlock"] {
+[data-testid="stVerticalBlock"]:has(> .stMarkdown .detail-panel-marker),
+[data-testid="stVerticalBlock"]:has(.detail-panel-marker) {
   background: var(--ink-1);
   border-radius: var(--radius-card);
   border-left: 3px solid var(--process-m);
@@ -892,8 +896,8 @@ h1.voomie-wordmark {
   position: sticky;
   top: 20px;
 }
-.detail-panel-anchor {
-  /* Marker only; takes no layout space. */
+.detail-panel-marker {
+  /* Marker only — invisible, takes no layout space. */
   display: none;
 }
 .detail-close {
