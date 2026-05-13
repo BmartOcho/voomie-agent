@@ -591,7 +591,11 @@ def render_filter_chips(jobs: list[dict[str, Any]]) -> str:
     for name in chip_names:
         n = counts.get(name, 0)
         active_cls = " active" if name == current else ""
-        href = _query_link(filter=name)
+        # Clicking a filter chip clears the current selection — a
+        # detail panel for a job the new filter excludes would read
+        # as "where did this come from?" Filter answers "what jobs",
+        # selection answers "which of those"; the two couple.
+        href = _query_link(filter=name, selected=None)
         parts.append(
             f"<a href='{href}' target='_self' class='snap-chip{active_cls}'>"
             f"<div class='snap-count'>{n}</div>"
