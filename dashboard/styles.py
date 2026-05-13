@@ -39,12 +39,44 @@ DRAFTING_PHASES = frozenset({
 
 VALIDATING_PHASES = frozenset({"validating_spec"})
 
-# Buckets used by the queue filter dropdown.
+# Buckets used by the queue filter chips.
+#
+# The tri-state split: ready_for_review, clarification_needed, and
+# human_review/escalated each get their own bucket. Previously
+# ready_for_review and clarification_needed were merged under one
+# "Awaiting Review" label, but clarification_needed fires in ~70% of
+# fixture runs and represents a distinct CSR action ("send the draft
+# clarifying question to the customer") vs ready_for_review ("send the
+# finished spec"). Treating them as one bucket hid that asymmetry.
 PHASE_BUCKETS = {
-    "In Progress": DRAFTING_PHASES | VALIDATING_PHASES,
-    "Awaiting Review": frozenset({"ready_for_review", "clarification_needed"}),
-    "Human Review": frozenset({"human_review", "escalated"}),
-    "Done": frozenset({"done"}),
+    "Working":           DRAFTING_PHASES | VALIDATING_PHASES,
+    "Ready":             frozenset({"ready_for_review"}),
+    "Awaiting customer": frozenset({"clarification_needed"}),
+    "Needs human":       frozenset({"human_review", "escalated"}),
+    "Done":              frozenset({"done"}),
+}
+
+# Canonical filter-chip order; same order is used in the snapshot
+# strip so counts and chips line up.
+PHASE_BUCKET_ORDER = (
+    "Working",
+    "Ready",
+    "Awaiting customer",
+    "Needs human",
+    "Done",
+)
+
+# Pill labels — short, action-oriented strings displayed in the queue.
+# Maps the raw phase value (as written by the agent) to the CSR-facing
+# verb. Anything not in this map falls back to the .upper() of the raw
+# phase value with underscores replaced.
+PHASE_DISPLAY_LABELS = {
+    "ready_for_review":      "READY",
+    "clarification_needed":  "AWAITING CUSTOMER",
+    "human_review":          "NEEDS HUMAN",
+    "escalated":             "ESCALATED",
+    "done":                  "DONE",
+    "validating_spec":       "VALIDATING",
 }
 
 
@@ -68,7 +100,33 @@ def phase_pill_class(phase: str) -> str:
 
 
 def phase_pill(phase: str) -> str:
-    """Return an HTML <span> for a phase status pill."""
+    """Return an HTML <span> for a phase status pill.
+
+    Uses PHASE_DISPLAY_LABELS to surface short, action-oriented copy
+    where defined; falls back to the underscore-stripped uppercase of
+    the raw phase value otherwise. Drafting phases (8 of them) all share
+    one "WORKING" label since the per-phase distinction matters in the
+    sidebar legend but is noisy in the queue.
+    """
+    raw = phase or "unknown"
+    if raw in PHASE_DISPLAY_LABELS:
+        label = PHASE_DISPLAY_LABELS[raw]
+    elif raw in DRAFTING_PHASES:
+        label = "WORKING"
+    else:
+        label = raw.replace("_", " ").upper()
+    return (
+        f"<span class='status-pill {phase_pill_class(raw)}'>{label}</span>"
+    )
+
+
+def phase_legend_pill(phase: str) -> str:
+    """Sidebar-legend pill that always shows the full phase name.
+
+    Used only by the sidebar's phase legend, where the operator wants
+    to see every distinct phase value the agent might emit — not the
+    queue-friendly "WORKING" rollup.
+    """
     label = (phase or "unknown").replace("_", " ").upper()
     return (
         f"<span class='status-pill {phase_pill_class(phase or '')}'>{label}</span>"

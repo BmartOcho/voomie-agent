@@ -45,9 +45,11 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from dashboard.styles import (  # noqa: E402
+    PHASE_BUCKET_ORDER,
     PHASE_BUCKETS,
     STYLES,
     customer_badge,
+    phase_legend_pill,
     phase_pill,
     role_badge,
     turn_status_badge,
@@ -467,7 +469,7 @@ def render_queue_pane(jobs: list[dict[str, Any]]) -> None:
     st.markdown("### 📋 Active Job Queue")
     bucket = st.selectbox(
         "Filter",
-        ["All", "In Progress", "Awaiting Review", "Human Review", "Done"],
+        ["All", *PHASE_BUCKET_ORDER],
         key="queue_filter",
         label_visibility="collapsed",
     )
@@ -744,7 +746,7 @@ def render_sidebar() -> bool:
             "escalated",
             "done",
         ):
-            st.markdown(phase_pill(phase), unsafe_allow_html=True)
+            st.markdown(phase_legend_pill(phase), unsafe_allow_html=True)
         st.divider()
         st.caption(
             "Voomie agent runs spawn as background subprocesses.\n\n"
